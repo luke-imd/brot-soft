@@ -151,12 +151,12 @@ export default function Garage({ userId }: { userId: string }) {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <h3 className="font-semibold mb-1">Freigeben</h3>
-                <RangeForm label="Freigeben" initialDate={date}
+                <RangeForm key={`free-${sel.id}-${date}-${half}`} label="Freigeben" initialDate={date}
                   onSubmit={slots => freeUp(sel.id, slots)} />
               </div>
               <div>
                 <h3 className="font-semibold mb-1">Freigabe zurückziehen</h3>
-                <RangeForm label="Zurückziehen" initialDate={date}
+                <RangeForm key={`retract-${sel.id}-${date}-${half}`} label="Zurückziehen" initialDate={date}
                   onSubmit={slots => retract(sel.id, slots)} />
               </div>
             </div>
@@ -165,7 +165,7 @@ export default function Garage({ userId }: { userId: string }) {
               <h3 className="font-semibold mb-1">
                 Buchen ({fmtEur(priceCents(1, rate))} pro Halbtag)
               </h3>
-              <RangeForm label="Buchen" initialDate={date}
+              <RangeForm key={`book-${sel.id}-${date}-${half}`} label="Buchen" initialDate={date}
                 onSubmit={slots => book(sel.id, slots)} />
             </div>
           )}
