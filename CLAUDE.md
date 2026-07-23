@@ -41,7 +41,7 @@ WG-Tool für **24 Garagenplätze** und **max. 50 User**. Platzbesitzer geben ihr
 ```
 src/
 ├── main.tsx                 # React entrypoint
-├── App.tsx                  # Auth-Gate + Tab-Shell (Garage/Kalender/Ledger) + Passwort-Formular
+├── App.tsx                  # Auth-Gate + Tab-Shell (Garage/Kalender/Ledger/Anleitung) + Passwort-Formular
 ├── Login.tsx                # E-Mail+Passwort-Login, "Passwort vergessen"
 ├── index.css                # @import "tailwindcss"
 ├── components/
@@ -54,7 +54,8 @@ src/
 └── pages/
     ├── Garage.tsx           # Vogelperspektive (2×12 Grid), buchen/freigeben/stornieren
     ├── Calendar.tsx         # Monatsansicht, freie Plätze pro Tag, buchen
-    └── Ledger.tsx           # Schulden-Liste, einseitiges Begleichen, Admin-Bereich
+    ├── Ledger.tsx           # Schulden-Liste, einseitiges Begleichen, Admin-Bereich
+    └── Help.tsx             # Statische Bedienungsanleitung für User (Tab "Anleitung")
 
 supabase/
 ├── migrations/              # Schema + RLS + RPCs (nur additiv, nie editieren)

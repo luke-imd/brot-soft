@@ -5,8 +5,9 @@ import Login from './Login'
 import Garage from './pages/Garage'
 import Calendar from './pages/Calendar'
 import Ledger from './pages/Ledger'
+import Help from './pages/Help'
 
-const TABS = { garage: 'Garage', kalender: 'Kalender', ledger: 'Ledger' } as const
+const TABS = { garage: 'Garage', kalender: 'Kalender', ledger: 'Ledger', anleitung: 'Anleitung' } as const
 type Tab = keyof typeof TABS
 
 function PasswordForm({ onDone }: { onDone: () => void }) {
@@ -89,6 +90,7 @@ export default function App() {
         {tab === 'garage' && <Garage userId={userId} />}
         {tab === 'kalender' && <Calendar userId={userId} />}
         {tab === 'ledger' && <Ledger userId={userId} />}
+        {tab === 'anleitung' && <Help />}
       </main>
     </div>
   )

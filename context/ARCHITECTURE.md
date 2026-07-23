@@ -56,11 +56,12 @@ Anwenden per Supabase-MCP `apply_migration` (Name = Dateiname ohne `.sql`). DB-T
 
 ## Frontend
 
-- **`App.tsx`** — Auth-Gate (`getSession` + `onAuthStateChange`), Tab-Shell (Garage/Kalender/Ledger), globales „Passwort setzen"-Formular (öffnet automatisch bei Invite-/Recovery-Link via URL-Hash).
+- **`App.tsx`** — Auth-Gate (`getSession` + `onAuthStateChange`), Tab-Shell (Garage/Kalender/Ledger/Anleitung), globales „Passwort setzen"-Formular (öffnet automatisch bei Invite-/Recovery-Link via URL-Hash).
 - **`Login.tsx`** — E-Mail + Passwort (`signInWithPassword`), „Passwort vergessen" (`resetPasswordForEmail`).
 - **`pages/Garage.tsx`** — Vogelperspektive: CSS-Grid 2×12 aus `grid_row`/`grid_col`, Farb-Status pro Tag/Halbtag, Detail-Panel mit Buchen (Nicht-Besitzer) / Freigeben+Zurückziehen (Besitzer) / Stornieren (eigene Buchung). Buchen/Stornieren via RPC, Freigeben/Zurückziehen direkt auf `free_slots`. `RangeForm`-Instanzen tragen `key` (Reset bei Platz-/Datumswechsel).
 - **`pages/Calendar.tsx`** — Monatsansicht (Wochenstart Montag), freie Plätze pro Tag, Tag-Klick listet freie Plätze mit Buchen-Form.
 - **`pages/Ledger.tsx`** — offene Posten „X schuldet Y n €" mit Beglichen-Button (nur Beteiligte), aufklappbare Beglichen-Historie, Admin-Karte (Tagessatz €↔Cents, Zahltag-Button).
+- **`pages/Help.tsx`** — statische Bedienungsanleitung (Tab „Anleitung"): Farben, Halbtage, buchen/freigeben/stornieren/begleichen, Passwort. Kein Datenzugriff, keine Props.
 - **`lib/slots.ts`** — reine Logik, TDD-getestet: `slotRange`, `priceCents`, `fmtEur`, `localDate`, Typen `Half`/`Slot`. `Slot` ist ein Type-Alias (nicht Interface), damit es an den generierten `Json`-RPC-Parametertyp zuweisbar ist.
 
 ## Deploy
