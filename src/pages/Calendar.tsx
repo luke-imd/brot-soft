@@ -60,18 +60,20 @@ export default function Calendar(_props: { userId: string }) {
 
   return (
     <div className="space-y-4">
-      {loadError && <p className="bg-red-50 border border-red-300 rounded p-2 text-sm">{loadError}</p>}
-      <div className="flex items-center gap-4">
-        <button onClick={() => shift(-1)} className="px-2 py-1 bg-white rounded shadow">←</button>
-        <h2 className="text-lg font-bold">
+      {loadError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>}
+      <div className="flex items-center gap-3">
+        <button onClick={() => shift(-1)} aria-label="Voriger Monat"
+          className="btn btn-outline h-9 w-9 rounded-full px-0">←</button>
+        <h2 className="min-w-44 text-center text-lg font-bold tracking-tight">
           {new Date(year, month).toLocaleDateString('de-AT', { month: 'long', year: 'numeric' })}
         </h2>
-        <button onClick={() => shift(1)} className="px-2 py-1 bg-white rounded shadow">→</button>
+        <button onClick={() => shift(1)} aria-label="Nächster Monat"
+          className="btn btn-outline h-9 w-9 rounded-full px-0">→</button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => (
-          <div key={d} className="text-center text-xs text-gray-500">{d}</div>
+          <div key={d} className="pb-1 text-center text-xs font-semibold uppercase tracking-wide text-zinc-400">{d}</div>
         ))}
         {Array.from({ length: firstWeekday }, (_, i) => <div key={`pad${i}`} />)}
         {Array.from({ length: daysInMonth }, (_, i) => {
@@ -79,12 +81,21 @@ export default function Calendar(_props: { userId: string }) {
           const count = spotsOn(date).size
           return (
             <button key={date} onClick={() => setSelectedDay(date)}
-              className={`h-16 rounded p-1 text-left align-top border
-                ${selectedDay === date ? 'border-blue-600' : 'border-transparent'}
-                ${date === today ? 'bg-blue-50' : 'bg-white'} shadow-sm`}>
-              <span className={date < today ? 'text-gray-400' : ''}>{i + 1}</span>
+              className={`h-16 rounded-xl border bg-white p-1.5 text-left text-sm transition-colors
+                ${selectedDay === date ? 'border-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 hover:border-zinc-400'}`}>
+              <span className={
+                date === today
+                  ? 'inline-grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-xs font-bold text-white'
+                  : date < today ? 'text-zinc-300' : 'font-medium'
+              }>
+                {i + 1}
+              </span>
               {count > 0 && date >= today && (
-                <div className="text-xs text-green-700 font-semibold">{count} frei</div>
+                <div className="mt-0.5">
+                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
+                    {count} frei
+                  </span>
+                </div>
               )}
             </button>
           )
@@ -92,15 +103,15 @@ export default function Calendar(_props: { userId: string }) {
       </div>
 
       {selectedDay && daySpots && (
-        <div className="bg-white rounded-xl shadow p-4 space-y-3">
-          <h3 className="font-bold">{selectedDay}</h3>
-          {daySpots.size === 0 && <p className="text-gray-500">Keine freien Plätze.</p>}
+        <div className="card fade-in space-y-3">
+          <h3 className="font-bold tracking-tight">{selectedDay}</h3>
+          {daySpots.size === 0 && <p className="text-zinc-500">Keine freien Plätze.</p>}
           {[...daySpots.entries()].sort(([a], [b]) => a - b).map(([spotId, halves]) => (
-            <details key={spotId} className="border rounded p-2">
-              <summary className="cursor-pointer">
+            <details key={spotId} className="rounded-xl border border-zinc-200 p-3 transition-colors open:bg-zinc-50">
+              <summary className="cursor-pointer select-none text-sm font-medium">
                 Platz {spotId} — frei: {halves.sort().map(h => h === 'am' ? 'Vormittag' : 'Nachmittag').join(' + ')}
               </summary>
-              <div className="pt-2">
+              <div className="pt-3">
                 <RangeForm key={`cal-${spotId}-${selectedDay}`} label="Buchen" initialDate={selectedDay}
                   onSubmit={slots => book(spotId, slots)} />
               </div>

@@ -24,8 +24,8 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap items-center gap-2">
-      <label className="font-semibold" htmlFor="new-pw">Neues Passwort:</label>
+    <form onSubmit={submit} className="card fade-in mb-4 flex flex-wrap items-center gap-3">
+      <label className="text-sm font-semibold" htmlFor="new-pw">Neues Passwort</label>
       <input
         id="new-pw"
         type="password"
@@ -33,10 +33,10 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
         minLength={6}
         value={pw}
         onChange={e => setPw(e.target.value)}
-        className="border rounded p-1"
+        className="input"
       />
-      <button className="bg-blue-600 text-white rounded px-3 py-1">Speichern</button>
-      {msg && <p className="text-red-600 text-sm w-full">{msg}</p>}
+      <button className="btn btn-primary">Speichern</button>
+      {msg && <p className="w-full text-sm text-red-600">{msg}</p>}
     </form>
   )
 }
@@ -74,37 +74,49 @@ export default function App() {
   const visibleTabs = (Object.keys(TABS) as Tab[]).filter(t => t !== 'admin' || isAdmin)
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow flex items-center gap-1 px-4 py-2">
-        {visibleTabs.map(t => (
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-10 border-b border-zinc-200/80 bg-white/85 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-2.5">
+          <span className="mr-2 flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-600 text-lg font-extrabold text-white">P</span>
+            <span className="text-lg font-extrabold tracking-tight">Garage</span>
+          </span>
+          <nav className="order-last flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
+            {visibleTabs.map(t => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                  tab === t ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70 hover:text-zinc-900'
+                }`}
+              >
+                {TABS[t]}
+              </button>
+            ))}
+          </nav>
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded ${tab === t ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}
+            onClick={() => setShowPw(v => !v)}
+            className="ml-auto text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900"
           >
-            {TABS[t]}
+            Passwort
           </button>
-        ))}
-        <button
-          onClick={() => setShowPw(v => !v)}
-          className="ml-auto text-sm text-gray-500 hover:text-gray-800"
-        >
-          Passwort
-        </button>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="text-sm text-gray-500 hover:text-gray-800"
-        >
-          Logout
-        </button>
-      </nav>
-      <main className="max-w-5xl mx-auto p-4">
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl p-4 sm:p-6">
         {showPw && <PasswordForm onDone={() => setShowPw(false)} />}
-        {tab === 'garage' && <Garage userId={userId} />}
-        {tab === 'kalender' && <Calendar userId={userId} />}
-        {tab === 'ledger' && <Ledger userId={userId} />}
-        {tab === 'anleitung' && <Help />}
-        {tab === 'admin' && isAdmin && <Admin userId={userId} />}
+        <div key={tab} className="fade-in">
+          {tab === 'garage' && <Garage userId={userId} />}
+          {tab === 'kalender' && <Calendar userId={userId} />}
+          {tab === 'ledger' && <Ledger userId={userId} />}
+          {tab === 'anleitung' && <Help />}
+          {tab === 'admin' && isAdmin && <Admin userId={userId} />}
+        </div>
       </main>
     </div>
   )

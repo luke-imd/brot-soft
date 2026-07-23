@@ -41,24 +41,26 @@ export default function Ledger({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
-      {msg && <p className="bg-yellow-50 border border-yellow-300 rounded p-2 text-sm">{msg}</p>}
+      {msg && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{msg}</p>}
 
-      <section className="bg-white rounded-xl shadow p-4">
-        <h2 className="text-lg font-bold mb-2">Offene Schulden</h2>
-        {open.length === 0 && <p className="text-gray-500">Keine offenen Schulden. 🎉</p>}
-        <ul className="divide-y">
+      <section className="card">
+        <h2 className="mb-3 text-lg font-bold tracking-tight">Offene Schulden</h2>
+        {open.length === 0 && <p className="text-zinc-500">Keine offenen Schulden. 🎉</p>}
+        <ul className="divide-y divide-zinc-100">
           {open.map(r => (
-            <li key={r.id} className="py-2 flex items-center gap-2">
-              <span>
-                <b>{name(r.debtor_id)}</b> schuldet <b>{name(r.creditor_id)}</b>{' '}
-                {fmtEur(r.amount_cents)}
-                <span className="text-gray-400 text-xs ml-2">
+            <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3">
+              <div className="min-w-0 flex-1">
+                <p>
+                  <b>{name(r.debtor_id)}</b> schuldet <b>{name(r.creditor_id)}</b>
+                </p>
+                <p className="text-xs text-zinc-400">
                   seit {new Date(r.created_at).toLocaleDateString('de-AT')}
-                </span>
-              </span>
+                </p>
+              </div>
+              <span className="font-bold tabular-nums">{fmtEur(r.amount_cents)}</span>
               {(r.debtor_id === userId || r.creditor_id === userId) && (
                 <button onClick={() => settle(r.id)}
-                  className="ml-auto bg-green-600 text-white rounded px-3 py-1 text-sm">
+                  className="btn bg-emerald-600 px-3 py-1.5 text-white hover:bg-emerald-500">
                   Schulden beglichen
                 </button>
               )}
@@ -67,14 +69,15 @@ export default function Ledger({ userId }: { userId: string }) {
         </ul>
       </section>
 
-      <details className="bg-white rounded-xl shadow p-4">
-        <summary className="text-lg font-bold cursor-pointer">
+      <details className="card">
+        <summary className="cursor-pointer select-none text-lg font-bold tracking-tight">
           Beglichen ({settled.length})
         </summary>
-        <ul className="divide-y mt-2">
+        <ul className="mt-2 divide-y divide-zinc-100">
           {settled.map(r => (
-            <li key={r.id} className="py-2 text-sm text-gray-600">
-              {name(r.debtor_id)} → {name(r.creditor_id)}: {fmtEur(r.amount_cents)}
+            <li key={r.id} className="py-2 text-sm text-zinc-500">
+              {name(r.debtor_id)} → {name(r.creditor_id)}:{' '}
+              <span className="font-semibold tabular-nums text-zinc-700">{fmtEur(r.amount_cents)}</span>
               {' — '}beglichen am {new Date(r.settled_at!).toLocaleDateString('de-AT')}
               {' '}durch {name(r.settled_by)}
             </li>

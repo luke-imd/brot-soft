@@ -34,21 +34,20 @@ export default function RangeForm({ label, initialDate, onSubmit }: {
     <form onSubmit={submit} className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <input type="date" value={start} onChange={e => setStart(e.target.value)}
-          className="border rounded p-1" />
+          className="input" />
         <select value={startHalf} onChange={e => setStartHalf(e.target.value as Half)}
-          className="border rounded p-1">
+          className="input">
           {HALVES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        <span>bis</span>
+        <span className="text-sm text-zinc-500">bis</span>
         <input type="date" value={end} onChange={e => setEnd(e.target.value)}
-          className="border rounded p-1" />
+          className="input" />
         <select value={endHalf} onChange={e => setEndHalf(e.target.value as Half)}
-          className="border rounded p-1">
+          className="input">
           {HALVES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>
-      <button disabled={busy || slots.length === 0}
-        className="bg-blue-600 text-white rounded px-3 py-1.5 disabled:opacity-50">
+      <button disabled={busy || slots.length === 0} className="btn btn-primary">
         {label} ({slots.length} Halbtage)
       </button>
       {error && <p className="text-red-600 text-sm">{error}</p>}

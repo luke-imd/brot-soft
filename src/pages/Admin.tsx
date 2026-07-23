@@ -76,18 +76,18 @@ export default function Admin({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
-      {msg && <p className="bg-yellow-50 border border-yellow-300 rounded p-2 text-sm">{msg}</p>}
+      {msg && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{msg}</p>}
 
-      <section className="bg-white rounded-xl shadow p-4">
-        <h2 className="text-lg font-bold mb-2">Plätze zuweisen</h2>
-        <div className="grid sm:grid-cols-2 gap-2">
+      <section className="card">
+        <h2 className="mb-3 text-lg font-bold tracking-tight">Plätze zuweisen</h2>
+        <div className="grid gap-2 sm:grid-cols-2">
           {spots.map(spot => (
             <div key={spot.id} className="flex items-center gap-2">
-              <span className="w-16 shrink-0">Platz {spot.id}</span>
+              <span className="w-16 shrink-0 text-sm font-medium">Platz {spot.id}</span>
               <select
                 value={spot.owner_id ?? ''}
                 onChange={e => assignSpot(spot.id, e.target.value || null)}
-                className="border rounded p-1 flex-1"
+                className="input flex-1"
               >
                 <option value="">— kein Besitzer —</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -97,40 +97,41 @@ export default function Admin({ userId }: { userId: string }) {
         </div>
       </section>
 
-      <section className="bg-white rounded-xl shadow p-4 space-y-2">
-        <h2 className="text-lg font-bold">Einladungs-Link</h2>
-        <p className="text-sm text-gray-600">
+      <section className="card space-y-3">
+        <h2 className="text-lg font-bold tracking-tight">Einladungs-Link</h2>
+        <p className="text-sm text-zinc-500">
           Diesen Link an neue Mitbewohner schicken — damit können sie sich selbst registrieren.
           Nur wer den Link hat, kommt rein.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <input readOnly value={inviteLink} className="border rounded p-1 flex-1 min-w-0 bg-gray-50 text-sm" />
+          <input readOnly value={inviteLink} className="input min-w-0 flex-1 bg-zinc-50" />
           <button
             onClick={() => { navigator.clipboard?.writeText(inviteLink); setMsg('Link kopiert.') }}
-            className="bg-blue-600 text-white rounded px-3 py-1"
+            className="btn btn-primary"
           >
             Kopieren
           </button>
-          <button onClick={newCode} className="border rounded px-3 py-1">Neuen Link erzeugen</button>
+          <button onClick={newCode} className="btn btn-outline">Neuen Link erzeugen</button>
         </div>
       </section>
 
-      <section className="bg-white rounded-xl shadow p-4">
-        <h2 className="text-lg font-bold mb-2">User verwalten</h2>
-        <ul className="divide-y">
+      <section className="card">
+        <h2 className="mb-3 text-lg font-bold tracking-tight">User verwalten</h2>
+        <ul className="divide-y divide-zinc-100">
           {profiles.map(p => (
-            <li key={p.id} className="py-2 flex items-center gap-2">
-              <span className="flex-1">
+            <li key={p.id} className="flex flex-wrap items-center gap-2 py-2.5">
+              <span className="flex-1 font-medium">
                 {p.name}
-                {p.is_admin && <span className="ml-2 text-xs bg-gray-200 rounded px-1.5 py-0.5">Admin</span>}
-                {p.id === userId && <span className="ml-2 text-xs text-gray-400">(du)</span>}
+                {p.is_admin && <span className="ml-2 rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-semibold">Admin</span>}
+                {p.id === userId && <span className="ml-2 text-xs text-zinc-400">(du)</span>}
               </span>
               {p.id !== userId && (
                 <>
-                  <button onClick={() => toggleAdmin(p)} className="text-sm border rounded px-2 py-1">
+                  <button onClick={() => toggleAdmin(p)} className="btn btn-outline px-2.5 py-1 text-xs">
                     {p.is_admin ? 'Admin entziehen' : 'Zum Admin machen'}
                   </button>
-                  <button onClick={() => removeUser(p)} className="text-sm text-red-600 border border-red-300 rounded px-2 py-1">
+                  <button onClick={() => removeUser(p)}
+                    className="btn border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50">
                     Löschen
                   </button>
                 </>
@@ -140,14 +141,14 @@ export default function Admin({ userId }: { userId: string }) {
         </ul>
       </section>
 
-      <section className="bg-white rounded-xl shadow p-4 space-y-3">
-        <h2 className="text-lg font-bold">Tagessatz &amp; Zahltag</h2>
+      <section className="card space-y-3">
+        <h2 className="text-lg font-bold tracking-tight">Tagessatz &amp; Zahltag</h2>
         <div className="flex items-center gap-2">
-          <label htmlFor="rate">Tagessatz (€):</label>
-          <input id="rate" value={rate} onChange={e => setRate(e.target.value)} className="border rounded p-1 w-20" />
-          <button onClick={saveRate} className="bg-blue-600 text-white rounded px-3 py-1">Speichern</button>
+          <label htmlFor="rate" className="text-sm font-medium">Tagessatz (€):</label>
+          <input id="rate" value={rate} onChange={e => setRate(e.target.value)} className="input w-24" />
+          <button onClick={saveRate} className="btn btn-primary">Speichern</button>
         </div>
-        <button onClick={zahltag} className="bg-red-600 text-white rounded px-3 py-1">
+        <button onClick={zahltag} className="btn btn-danger">
           📧 Zahltag-E-Mail an alle schicken
         </button>
       </section>

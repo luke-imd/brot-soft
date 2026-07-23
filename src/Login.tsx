@@ -24,16 +24,22 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form onSubmit={submit} className="bg-white rounded-xl shadow p-8 w-80 space-y-4">
-        <h1 className="text-xl font-bold">Garage Login</h1>
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <form onSubmit={submit} className="card fade-in w-full max-w-xs space-y-4 p-7">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-xl font-extrabold text-white">P</span>
+          <div>
+            <h1 className="text-xl font-extrabold leading-tight tracking-tight">Garage</h1>
+            <p className="text-sm text-zinc-500">Anmelden</p>
+          </div>
+        </div>
         <input
           type="email"
           required
           value={email}
           onChange={e => setEmail(e.target.value)}
           placeholder="E-Mail"
-          className="w-full border rounded p-2"
+          className="input w-full"
         />
         <input
           type="password"
@@ -41,17 +47,17 @@ export default function Login() {
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="Passwort"
-          className="w-full border rounded p-2"
+          className="input w-full"
         />
-        <button className="w-full bg-blue-600 text-white rounded p-2">Login</button>
+        <button className="btn btn-primary w-full">Login</button>
         <button
           type="button"
           onClick={forgot}
-          className="w-full text-sm text-gray-500 hover:text-gray-800"
+          className="w-full text-sm text-zinc-500 transition-colors hover:text-zinc-900"
         >
           Passwort vergessen?
         </button>
-        {msg && <p className="text-sm text-gray-700">{msg}</p>}
+        {msg && <p className="text-sm text-zinc-700">{msg}</p>}
       </form>
     </div>
   )

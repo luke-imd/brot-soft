@@ -9,6 +9,13 @@ type BookingRow = { id: string; spot_id: number; borrower_id: string }
 
 const HALF_LABEL: Record<Half, string> = { am: 'Vormittag', pm: 'Nachmittag' }
 
+const LEGEND: [string, string][] = [
+  ['bg-zinc-400', 'Besitzer'],
+  ['bg-emerald-500', 'Frei'],
+  ['bg-blue-500', 'Meine Buchung'],
+  ['bg-orange-400', 'Gebucht'],
+]
+
 export default function Garage({ userId }: { userId: string }) {
   const [date, setDate] = useState(localDate())
   const [half, setHalf] = useState<Half>(new Date().getHours() < 12 ? 'am' : 'pm')
@@ -62,9 +69,9 @@ export default function Garage({ userId }: { userId: string }) {
   }
 
   const COLORS: Record<string, string> = {
-    occupied: 'bg-gray-300 text-gray-600',
-    free: 'bg-green-500 text-white',
-    mine: 'bg-blue-600 text-white',
+    occupied: 'bg-zinc-700/70 text-zinc-500',
+    free: 'bg-emerald-500 text-white',
+    mine: 'bg-blue-500 text-white',
     booked: 'bg-orange-400 text-white',
   }
 
@@ -119,63 +126,72 @@ export default function Garage({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
-      {loadError && <p className="bg-red-50 border border-red-300 rounded p-2 text-sm">{loadError}</p>}
-      <div className="flex items-center gap-2">
+      {loadError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>}
+      <div className="flex flex-wrap items-center gap-2">
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          className="border rounded p-1 bg-white" />
+          className="input" />
         <select value={half} onChange={e => setHalf(e.target.value as Half)}
-          className="border rounded p-1 bg-white">
+          className="input">
           <option value="am">Vormittag</option>
           <option value="pm">Nachmittag</option>
         </select>
-        <div className="ml-auto flex gap-3 text-xs">
-          <span><span className="inline-block w-3 h-3 bg-gray-300 rounded mr-1" />Besitzer</span>
-          <span><span className="inline-block w-3 h-3 bg-green-500 rounded mr-1" />Frei</span>
-          <span><span className="inline-block w-3 h-3 bg-blue-600 rounded mr-1" />Meine Buchung</span>
-          <span><span className="inline-block w-3 h-3 bg-orange-400 rounded mr-1" />Gebucht</span>
+        <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600">
+          {LEGEND.map(([color, label]) => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} />{label}
+            </span>
+          ))}
         </div>
       </div>
 
       {/* ponytail: layout aus spots-tabelle (2x12), echter grundriss kommt später */}
-      <div className="bg-gray-700 rounded-xl p-4 grid grid-cols-12 gap-x-1 gap-y-10">
-        {spots.map(spot => (
-          <button key={spot.id} onClick={() => { setSelected(spot.id); setCancelError('') }}
-            style={{ gridRow: spot.grid_row, gridColumn: spot.grid_col }}
-            className={`aspect-[2/3] rounded border-2 text-sm font-bold
-              ${COLORS[status(spot)]}
-              ${selected === spot.id ? 'border-yellow-300' : 'border-gray-500'}`}>
-            {spot.id}
-          </button>
-        ))}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-zinc-800 to-zinc-900 p-4 shadow-inner sm:p-6">
+        {/* Fahrbahn-Mittellinie zwischen den zwei Parkreihen */}
+        <div aria-hidden className="absolute inset-x-8 top-1/2 border-t-2 border-dashed border-white/20" />
+        <div className="relative grid grid-cols-12 gap-x-1.5 gap-y-14">
+          {spots.map(spot => (
+            <button key={spot.id} onClick={() => { setSelected(spot.id); setCancelError('') }}
+              style={{ gridRow: spot.grid_row, gridColumn: spot.grid_col }}
+              className={`aspect-[2/3] rounded-md border border-white/15 text-sm font-bold
+                transition-all duration-150 hover:brightness-110 active:scale-95
+                ${COLORS[status(spot)]}
+                ${selected === spot.id ? 'ring-2 ring-yellow-300 ring-offset-2 ring-offset-zinc-800' : ''}`}>
+              {spot.id}
+            </button>
+          ))}
+        </div>
       </div>
 
       {sel && (
-        <div className="bg-white rounded-xl shadow p-4 space-y-3">
+        <div className="card fade-in space-y-4">
           <div className="flex items-baseline gap-2">
-            <h2 className="text-lg font-bold">Platz {sel.id}</h2>
-            <span className="text-gray-500 text-sm">
+            <h2 className="text-lg font-bold tracking-tight">Platz {sel.id}</h2>
+            <span className="text-sm text-zinc-500">
               {sel.owner_id ? `Besitzer: ${names.get(sel.owner_id) ?? '?'}` : 'kein Besitzer'}
               {' · '}{date} {HALF_LABEL[half]}
             </span>
-            <button onClick={() => setSelected(null)} className="ml-auto text-gray-400">✕</button>
+            <button onClick={() => setSelected(null)} aria-label="Schließen"
+              className="ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
+              ✕
+            </button>
           </div>
 
           {sel.owner_id === userId ? (
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <h3 className="font-semibold mb-1">Freigeben</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Freigeben</h3>
                 <RangeForm key={`free-${sel.id}-${date}-${half}`} label="Freigeben" initialDate={date}
                   onSubmit={slots => freeUp(sel.id, slots)} />
               </div>
               <div>
-                <h3 className="font-semibold mb-1">Freigabe zurückziehen</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Freigabe zurückziehen</h3>
                 <RangeForm key={`retract-${sel.id}-${date}-${half}`} label="Zurückziehen" initialDate={date}
                   onSubmit={slots => retract(sel.id, slots)} />
               </div>
             </div>
           ) : (
             <div>
-              <h3 className="font-semibold mb-1">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Buchen ({fmtEur(priceCents(1, rate))} pro Halbtag)
               </h3>
               <RangeForm key={`book-${sel.id}-${date}-${half}`} label="Buchen" initialDate={date}
@@ -185,12 +201,11 @@ export default function Garage({ userId }: { userId: string }) {
 
           {myBooking && (
             <div>
-              <h3 className="font-semibold mb-1">Meine Buchung ({date})</h3>
-              <button onClick={cancelMine}
-                className="bg-red-600 text-white rounded px-3 py-1.5">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Meine Buchung ({date})</h3>
+              <button onClick={cancelMine} className="btn btn-danger">
                 Buchung stornieren
               </button>
-              {cancelError && <p className="text-red-600 text-sm">{cancelError}</p>}
+              {cancelError && <p className="mt-2 text-sm text-red-600">{cancelError}</p>}
             </div>
           )}
         </div>

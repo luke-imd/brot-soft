@@ -38,17 +38,23 @@ export default function Join({ code }: { code: string }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form onSubmit={submit} className="bg-white rounded-xl shadow p-8 w-80 space-y-4">
-        <h1 className="text-xl font-bold">Registrieren</h1>
-        <p className="text-sm text-gray-600">Willkommen bei der Garagen-Verwaltung. Leg dir einen Zugang an.</p>
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <form onSubmit={submit} className="card fade-in w-full max-w-xs space-y-4 p-7">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-xl font-extrabold text-white">P</span>
+          <div>
+            <h1 className="text-xl font-extrabold leading-tight tracking-tight">Registrieren</h1>
+            <p className="text-sm text-zinc-500">Garagen-Verwaltung</p>
+          </div>
+        </div>
+        <p className="text-sm text-zinc-600">Willkommen! Leg dir einen Zugang an.</p>
         <input
           type="text"
           required
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="Name"
-          className="w-full border rounded p-2"
+          className="input w-full"
         />
         <input
           type="email"
@@ -56,7 +62,7 @@ export default function Join({ code }: { code: string }) {
           value={email}
           onChange={e => setEmail(e.target.value)}
           placeholder="E-Mail"
-          className="w-full border rounded p-2"
+          className="input w-full"
         />
         <input
           type="password"
@@ -65,12 +71,12 @@ export default function Join({ code }: { code: string }) {
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="Passwort (mind. 6 Zeichen)"
-          className="w-full border rounded p-2"
+          className="input w-full"
         />
-        <button disabled={busy} className="w-full bg-blue-600 text-white rounded p-2 disabled:opacity-50">
+        <button disabled={busy} className="btn btn-primary w-full">
           {busy ? 'Moment…' : 'Account anlegen'}
         </button>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
       </form>
     </div>
   )
