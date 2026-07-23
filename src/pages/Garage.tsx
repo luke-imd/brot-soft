@@ -18,6 +18,7 @@ export default function Garage({ userId }: { userId: string }) {
   const [names, setNames] = useState<Map<string, string>>(new Map())
   const [rate, setRate] = useState(500)
   const [selected, setSelected] = useState<number | null>(null)
+  const [cancelError, setCancelError] = useState('')
 
   const load = useCallback(async () => {
     const [s, f, p, st] = await Promise.all([
@@ -90,7 +91,19 @@ export default function Garage({ userId }: { userId: string }) {
     await load()
   }
 
+  async function cancelMine() {
+    if (!myBooking) return
+    const { error } = await supabase.rpc('cancel_booking', { p_booking_id: myBooking.id })
+    if (error) { setCancelError(error.message); return }
+    setCancelError('')
+    setSelected(null)
+    await load()
+  }
+
   const sel = spots.find(s => s.id === selected)
+  const selSlot = sel ? free.find(f => f.spot_id === sel.id) : undefined
+  const selBooking = selSlot?.booking_id ? bookings.get(selSlot.booking_id) : undefined
+  const myBooking = selBooking?.borrower_id === userId ? selBooking : undefined
 
   return (
     <div className="space-y-4">
@@ -113,7 +126,7 @@ export default function Garage({ userId }: { userId: string }) {
       {/* ponytail: layout aus spots-tabelle (2x12), echter grundriss kommt später */}
       <div className="bg-gray-700 rounded-xl p-4 grid grid-cols-12 gap-x-1 gap-y-10">
         {spots.map(spot => (
-          <button key={spot.id} onClick={() => setSelected(spot.id)}
+          <button key={spot.id} onClick={() => { setSelected(spot.id); setCancelError('') }}
             style={{ gridRow: spot.grid_row, gridColumn: spot.grid_col }}
             className={`aspect-[2/3] rounded border-2 text-sm font-bold
               ${COLORS[status(spot)]}
@@ -154,6 +167,17 @@ export default function Garage({ userId }: { userId: string }) {
               </h3>
               <RangeForm label="Buchen" initialDate={date}
                 onSubmit={slots => book(sel.id, slots)} />
+            </div>
+          )}
+
+          {myBooking && (
+            <div>
+              <h3 className="font-semibold mb-1">Meine Buchung ({date})</h3>
+              <button onClick={cancelMine}
+                className="bg-red-600 text-white rounded px-3 py-1.5">
+                Buchung stornieren
+              </button>
+              {cancelError && <p className="text-red-600 text-sm">{cancelError}</p>}
             </div>
           )}
         </div>
