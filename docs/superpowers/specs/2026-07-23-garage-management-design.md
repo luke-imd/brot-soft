@@ -46,16 +46,15 @@ Ledger hält fest, wer wem was schuldet.
 |---|---|
 | `profiles` | 1:1 zu `auth.users`; Name, `is_admin` |
 | `spots` | 24 Plätze: Nummer, `owner_id`, Position (Reihe/Index) für die Vogelperspektive |
-| `availabilities` | Freigabe-Zeiträume je Platz: `spot_id`, Start-/End-Slot |
-| `bookings` | Buchung: `spot_id`, `borrower_id`, Zeitraum, Status |
-| `booking_slots` | eine Zeile pro Platz + Datum + Halbtag (`am`/`pm`), FK auf `bookings`; **`UNIQUE(spot_id, date, half)`** verhindert Doppelbuchungen auf DB-Ebene |
+| `free_slots` | eine Zeile pro freigegebenem Platz + Datum + Halbtag (`am`/`pm`); `booking_id` leer = frei, gesetzt = gebucht. **`PRIMARY KEY(spot_id, date, half)`** verhindert Doppelbuchungen auf DB-Ebene |
+| `bookings` | Buchung: `spot_id`, `borrower_id`; die zugehörigen Slots referenzieren die Buchung |
 | `ledger` | pro Buchung: Schuldner, Gläubiger, Betrag, `settled_at`, `settled_by` (die Settled-Felder sind zugleich das Log) |
 | `settings` | eine Zeile: Tagessatz |
 
 RLS-Grundsatz: Alle eingeloggten User dürfen alles **lesen** (Transparenz ist
 gewollt — jeder sieht, wer wem was schuldet). Schreiben nur:
 
-- Besitzer → eigene Availabilities
+- Besitzer → eigene `free_slots` (freigeben/zurückziehen, solange ungebucht)
 - Jeder → eigene Buchungen (anlegen/stornieren)
 - Beteiligte (Schuldner oder Gläubiger) → `settled`-Felder ihres Ledger-Eintrags
 - Admin → Spots, Settings, Profiles
