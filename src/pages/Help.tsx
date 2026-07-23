@@ -89,7 +89,7 @@ export default function Help() {
       <section>
         <h2 className="text-lg font-bold tracking-tight mb-2">Passwort ändern</h2>
         <p>
-          Oben rechts auf <b>Passwort</b> klicken, neues Passwort eingeben, speichern. Passwort
+          Oben rechts auf <b>Passwort ändern</b> klicken, neues Passwort zweimal eingeben, speichern. Passwort
           vergessen? Auf der Login-Seite auf „Passwort vergessen?" klicken — du bekommst einen Link
           per E-Mail.
         </p>
