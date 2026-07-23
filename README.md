@@ -23,7 +23,8 @@ DB-Smoke-Test: `scripts/db-smoke.sql` im Supabase SQL Editor ausführen (rollt s
 ## Einmalige Einrichtung (Supabase Studio)
 
 1. **Signups deaktivieren:** Authentication → Sign In / Up → "Allow new users to sign up" aus.
-   (Login geht per Magic Link, rein kommen nur eingeladene User.)
+   (Login geht per E-Mail + Passwort; rein kommen nur eingeladene User. E-Mails fallen nur
+   bei Einladung und "Passwort vergessen" an.)
 2. **Admin setzen:** Tabelle `profiles` → bei dir `is_admin = true`.
 3. **Resend:** Account auf resend.com, API-Key erzeugen, in Supabase unter
    Edge Functions → zahltag → Secrets als `RESEND_API_KEY` hinterlegen.
@@ -33,7 +34,9 @@ DB-Smoke-Test: `scripts/db-smoke.sql` im Supabase SQL Editor ausführen (rollt s
 
 ## Betrieb (Admin-Aufgaben)
 
-- **User einladen:** Authentication → Users → "Invite user" (max. 50).
+- **User einladen:** Authentication → Users → "Invite user" (max. 50). Der Invite-Link
+  öffnet die App mit einem "Neues Passwort"-Formular; danach loggt sich der User immer
+  mit E-Mail + Passwort ein (Formular jederzeit über den "Passwort"-Button in der Leiste).
 - **Platz zuordnen:** Tabelle `spots` → `owner_id` des Users eintragen (24 Plätze, 2 Reihen à 12).
 - **Tagessatz ändern / Zahltag-Mail:** in der App, Tab "Ledger" → Admin-Bereich.
 
@@ -42,4 +45,4 @@ DB-Smoke-Test: `scripts/db-smoke.sql` im Supabase SQL Editor ausführen (rollt s
 1. Repo zu GitHub pushen, in Vercel importieren (Framework: Vite, Root: Repo-Root).
 2. Env-Vars `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` setzen.
 3. Supabase: Authentication → URL Configuration → Site URL auf die Vercel-URL setzen
-   (sonst zeigen Magic Links auf localhost).
+   (sonst zeigen Invite- und Passwort-Reset-Links auf localhost).

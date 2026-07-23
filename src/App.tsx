@@ -9,10 +9,42 @@ import Ledger from './pages/Ledger'
 const TABS = { garage: 'Garage', kalender: 'Kalender', ledger: 'Ledger' } as const
 type Tab = keyof typeof TABS
 
+function PasswordForm({ onDone }: { onDone: () => void }) {
+  const [pw, setPw] = useState('')
+  const [msg, setMsg] = useState('')
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    if (error) setMsg(error.message)
+    else onDone()
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap items-center gap-2">
+      <label className="font-semibold" htmlFor="new-pw">Neues Passwort:</label>
+      <input
+        id="new-pw"
+        type="password"
+        required
+        minLength={6}
+        value={pw}
+        onChange={e => setPw(e.target.value)}
+        className="border rounded p-1"
+      />
+      <button className="bg-blue-600 text-white rounded px-3 py-1">Speichern</button>
+      {msg && <p className="text-red-600 text-sm w-full">{msg}</p>}
+    </form>
+  )
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
   const [tab, setTab] = useState<Tab>('garage')
+  // Invite-/Recovery-Link landet mit type=... im URL-Hash -> direkt Passwort setzen lassen
+  const [showPw, setShowPw] = useState(() =>
+    window.location.hash.includes('type=invite') || window.location.hash.includes('type=recovery'))
 
   useEffect(() => {
     supabase.auth.getSession()
@@ -40,13 +72,20 @@ export default function App() {
           </button>
         ))}
         <button
-          onClick={() => supabase.auth.signOut()}
+          onClick={() => setShowPw(v => !v)}
           className="ml-auto text-sm text-gray-500 hover:text-gray-800"
+        >
+          Passwort
+        </button>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="text-sm text-gray-500 hover:text-gray-800"
         >
           Logout
         </button>
       </nav>
       <main className="max-w-5xl mx-auto p-4">
+        {showPw && <PasswordForm onDone={() => setShowPw(false)} />}
         {tab === 'garage' && <Garage userId={userId} />}
         {tab === 'kalender' && <Calendar userId={userId} />}
         {tab === 'ledger' && <Ledger userId={userId} />}
