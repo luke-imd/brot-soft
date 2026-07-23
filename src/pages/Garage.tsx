@@ -19,6 +19,7 @@ export default function Garage({ userId }: { userId: string }) {
   const [rate, setRate] = useState(500)
   const [selected, setSelected] = useState<number | null>(null)
   const [cancelError, setCancelError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   const load = useCallback(async () => {
     const [s, f, p, st] = await Promise.all([
@@ -27,6 +28,12 @@ export default function Garage({ userId }: { userId: string }) {
       supabase.from('profiles').select('id, name'),
       supabase.from('settings').select('day_rate_cents').single(),
     ])
+    const err = s.error ?? f.error ?? p.error ?? st.error
+    if (err) {
+      setLoadError(`Fehler beim Laden: ${err.message}`)
+      return
+    }
+    setLoadError('')
     setSpots(s.data ?? [])
     setFree((f.data ?? []) as FreeRow[])
     setNames(new Map((p.data ?? []).map(x => [x.id, x.name])))
@@ -34,6 +41,10 @@ export default function Garage({ userId }: { userId: string }) {
     const ids = (f.data ?? []).map(x => x.booking_id).filter((x): x is string => !!x)
     if (ids.length) {
       const b = await supabase.from('bookings').select('id, spot_id, borrower_id').in('id', ids)
+      if (b.error) {
+        setLoadError(`Fehler beim Laden: ${b.error.message}`)
+        return
+      }
       setBookings(new Map((b.data ?? []).map(x => [x.id, x])))
     } else {
       setBookings(new Map())
@@ -93,6 +104,7 @@ export default function Garage({ userId }: { userId: string }) {
 
   async function cancelMine() {
     if (!myBooking) return
+    if (!confirm('Storniert die gesamte Buchung (alle Halbtage). Fortfahren?')) return
     const { error } = await supabase.rpc('cancel_booking', { p_booking_id: myBooking.id })
     if (error) { setCancelError(error.message); return }
     setCancelError('')
@@ -107,6 +119,7 @@ export default function Garage({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
+      {loadError && <p className="bg-red-50 border border-red-300 rounded p-2 text-sm">{loadError}</p>}
       <div className="flex items-center gap-2">
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
           className="border rounded p-1 bg-white" />

@@ -13,14 +13,20 @@ export default function Calendar(_props: { userId: string }) {
   const [month, setMonth] = useState(now.getMonth()) // 0-basiert
   const [free, setFree] = useState<FreeRow[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState('')
 
   const first = `${year}-${pad(month + 1)}-01`
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const last = `${year}-${pad(month + 1)}-${pad(daysInMonth)}`
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('free_slots').select('*')
+    const { data, error } = await supabase.from('free_slots').select('*')
       .gte('date', first).lte('date', last).is('booking_id', null)
+    if (error) {
+      setLoadError(`Fehler beim Laden: ${error.message}`)
+      return
+    }
+    setLoadError('')
     setFree((data ?? []) as FreeRow[])
   }, [first, last])
 
@@ -54,6 +60,7 @@ export default function Calendar(_props: { userId: string }) {
 
   return (
     <div className="space-y-4">
+      {loadError && <p className="bg-red-50 border border-red-300 rounded p-2 text-sm">{loadError}</p>}
       <div className="flex items-center gap-4">
         <button onClick={() => shift(-1)} className="px-2 py-1 bg-white rounded shadow">←</button>
         <h2 className="text-lg font-bold">
