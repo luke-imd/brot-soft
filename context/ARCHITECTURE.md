@@ -13,6 +13,7 @@ Quelle: `supabase/migrations/20260723000001_schema.sql`. Alle Beträge in **Cent
 | `profiles` | `id` (PK, FK→`auth.users`), `name`, `is_admin` | 1:1 zu Auth-User; per Trigger `handle_new_user` bei Auth-Insert angelegt |
 | `spots` | `id` (PK, int), `owner_id` (FK→profiles, nullable), `grid_row` (1–2), `grid_col` (1–12) | 24 Plätze, per Seed erzeugt; Position = Vogelperspektive-Layout |
 | `settings` | `id` (bool-PK, immer true), `day_rate_cents` (default 500) | Single-Row-Konfiguration (Tagessatz) |
+| `invites` | `id` (bool-PK, immer true), `code` | Single-Row: geheimer Registrierungs-Code für den `?join=`-Link. Nur Admins lesen/rotieren (RLS) |
 | `bookings` | `id` (uuid), `spot_id`, `borrower_id`, `created_at` | Eine Buchung; zugehörige Halbtage referenzieren sie |
 | `free_slots` | **PK `(spot_id, date, half)`**, `booking_id` (FK→bookings, `on delete set null`) | Eine Zeile pro freigegebenem Halbtag; `booking_id null`=frei, gesetzt=gebucht |
 | `ledger` | `id` (uuid), `booking_id` (unique, FK `on delete cascade`), `debtor_id`, `creditor_id`, `amount_cents`, `created_at`, `settled_at`, `settled_by` | Eine Schuldposition pro Buchung; Settled-Felder = Log |
@@ -26,7 +27,8 @@ Quelle: `supabase/migrations/20260723000002_rls_rpc.sql`. RLS auf allen 6 Tabell
 - **`read_all`** (SELECT, alle Tabellen, `authenticated`): jeder eingeloggte User liest alles (Transparenz).
 - **`owner_frees`** (INSERT auf `free_slots`): nur wenn `booking_id is null` **und** der Platz dem User gehört → Besitzer gibt eigene Plätze frei.
 - **`owner_retracts`** (DELETE auf `free_slots`): gleiche Bedingung → Freigabe zurückziehen, nur ungebuchte Slots.
-- **`admin_updates`** (UPDATE auf `spots`/`settings`/`profiles`): nur `is_admin()`.
+- **`admin_updates`** (UPDATE auf `spots`/`settings`/`profiles`): nur `is_admin()`. → trägt die Admin-Seite (Plätze zuweisen, Tagessatz, Admin-Rechte toggeln).
+- **`admin_reads`/`admin_updates`** auf `invites`: nur `is_admin()` — Einladungs-Code lesen/rotieren.
 - **Kein** direktes INSERT/UPDATE/DELETE auf `bookings`/`ledger` für User — der einzige Weg führt über die RPCs. Dadurch können Beträge nicht clientseitig gefälscht werden.
 
 Helper: `is_admin()` — `security definer`, liest `profiles.is_admin` für `auth.uid()`.
@@ -47,21 +49,28 @@ Helper: `is_admin()` — `security definer`, liest `profiles.is_admin` für `aut
 | `...0002_rls_rpc.sql` | RLS-Policies, `is_admin()`, die drei RPCs |
 | `...0003_fix_rpc_grants.sql` | Execute-Grants: `public`/`anon` revoke, `authenticated` grant |
 | `...0004_cancel_settled_guard.sql` | `cancel_booking` neu: verbietet Storno beglichener Schulden |
+| `...0005_invites.sql` | `invites`-Tabelle (Registrierungs-Code) + admin-only RLS |
 
 Anwenden per Supabase-MCP `apply_migration` (Name = Dateiname ohne `.sql`). DB-Typen nach Schema-Änderungen neu generieren (`generate_typescript_types` → `src/lib/database.types.ts`).
 
-## Edge Function
+## Edge Functions
 
-- **`zahltag`** (`supabase/functions/zahltag/index.ts`, Deno) — vom Ledger-Admin-Button via `supabase.functions.invoke('zahltag')` aufgerufen. Prüft, dass der Aufrufer Admin ist (sonst 403), **bevor** Service-Role-Arbeit passiert; listet Auth-User, verschickt via **Resend** eine Mail an alle (`bcc`), Antwort `{ sent: number }`. CORS auf allen Pfaden inkl. top-level `try/catch` (500 mit CORS bei unerwarteten Fehlern). `verify_jwt: true`. Braucht Secret `RESEND_API_KEY`.
+Alle drei: CORS auf allen Pfaden, top-level `try/catch`, Deno.
+
+- **`zahltag`** (`verify_jwt: true`) — vom Admin-Button aufgerufen. Prüft Admin (sonst 403) **vor** Service-Role-Arbeit; listet Auth-User, verschickt via **Resend** eine Mail an alle (`bcc`), Antwort `{ sent: number }`. Braucht Secret `RESEND_API_KEY`.
+- **`join`** (`verify_jwt: false`) — öffentliche Selbstregistrierung, aufgerufen von der Join-Seite. Validiert Eingaben (E-Mail, Passwort ≥6, Name), prüft den geheimen `invites.code` (Service-Role-Read), deckelt bei `MAX_USERS = 50` (Count auf `profiles`), legt den User mit `email_confirm: true` an (keine Bestätigungs-Mail; Profil kommt per `handle_new_user`-Trigger). Antwort `{ ok, error? }` (200 auch bei Logikfehlern, 500 nur bei Exceptions).
+- **`delete-user`** (`verify_jwt: true`) — Admin löscht einen User. Prüft Admin, verhindert Selbstlöschung, löst zuerst `spots.owner_id`, dann `admin.deleteUser`. Schlägt (mit klarer Meldung) fehl, wenn der User Buchungen/Ledger-Historie hat (FK RESTRICT).
 
 ## Frontend
 
-- **`App.tsx`** — Auth-Gate (`getSession` + `onAuthStateChange`), Tab-Shell (Garage/Kalender/Ledger/Anleitung), globales „Passwort setzen"-Formular (öffnet automatisch bei Invite-/Recovery-Link via URL-Hash).
+- **`App.tsx`** — Auth-Gate (`getSession` + `onAuthStateChange`), Join-Routing (bei `?join=CODE` und ohne Session → `Join`-Seite), `is_admin`-Abfrage fürs Ein-/Ausblenden des Admin-Tabs, Tab-Shell (Garage/Kalender/Ledger/Anleitung/Admin), globales „Passwort setzen"-Formular (öffnet automatisch bei Invite-/Recovery-Link via URL-Hash).
 - **`Login.tsx`** — E-Mail + Passwort (`signInWithPassword`), „Passwort vergessen" (`resetPasswordForEmail`).
 - **`pages/Garage.tsx`** — Vogelperspektive: CSS-Grid 2×12 aus `grid_row`/`grid_col`, Farb-Status pro Tag/Halbtag, Detail-Panel mit Buchen (Nicht-Besitzer) / Freigeben+Zurückziehen (Besitzer) / Stornieren (eigene Buchung). Buchen/Stornieren via RPC, Freigeben/Zurückziehen direkt auf `free_slots`. `RangeForm`-Instanzen tragen `key` (Reset bei Platz-/Datumswechsel).
 - **`pages/Calendar.tsx`** — Monatsansicht (Wochenstart Montag), freie Plätze pro Tag, Tag-Klick listet freie Plätze mit Buchen-Form.
 - **`pages/Ledger.tsx`** — offene Posten „X schuldet Y n €" mit Beglichen-Button (nur Beteiligte), aufklappbare Beglichen-Historie, Admin-Karte (Tagessatz €↔Cents, Zahltag-Button).
 - **`pages/Help.tsx`** — statische Bedienungsanleitung (Tab „Anleitung"): Farben, Halbtage, buchen/freigeben/stornieren/begleichen, Passwort. Kein Datenzugriff, keine Props.
+- **`pages/Admin.tsx`** — nur für Admins sichtbar (Tab „Admin"). Vier Sektionen: Plätze zuweisen (`spots.owner_id` via UPDATE), Einladungs-Link (anzeigen/kopieren/rotieren via `invites`), User verwalten (Admin-Toggle via `profiles`, Löschen via `delete-user`-Function), Tagessatz & Zahltag (aus dem Ledger hierher gezogen).
+- **`pages/Join.tsx`** — Selbstregistrierung: Name/E-Mail/Passwort → `join`-Function, danach direkter `signInWithPassword` und Redirect auf `origin` (entfernt `?join`).
 - **`lib/slots.ts`** — reine Logik, TDD-getestet: `slotRange`, `priceCents`, `fmtEur`, `localDate`, Typen `Half`/`Slot`. `Slot` ist ein Type-Alias (nicht Interface), damit es an den generierten `Json`-RPC-Parametertyp zuweisbar ist.
 
 ## Deploy

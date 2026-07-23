@@ -86,6 +86,21 @@ export type Database = {
           },
         ]
       }
+      invites: {
+        Row: {
+          code: string
+          id: boolean
+        }
+        Insert: {
+          code: string
+          id?: boolean
+        }
+        Update: {
+          code?: string
+          id?: boolean
+        }
+        Relationships: []
+      }
       ledger: {
         Row: {
           amount_cents: number

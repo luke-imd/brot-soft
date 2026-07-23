@@ -6,8 +6,10 @@ import Garage from './pages/Garage'
 import Calendar from './pages/Calendar'
 import Ledger from './pages/Ledger'
 import Help from './pages/Help'
+import Admin from './pages/Admin'
+import Join from './pages/Join'
 
-const TABS = { garage: 'Garage', kalender: 'Kalender', ledger: 'Ledger', anleitung: 'Anleitung' } as const
+const TABS = { garage: 'Garage', kalender: 'Kalender', ledger: 'Ledger', anleitung: 'Anleitung', admin: 'Admin' } as const
 type Tab = keyof typeof TABS
 
 function PasswordForm({ onDone }: { onDone: () => void }) {
@@ -39,9 +41,12 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
   )
 }
 
+const joinCode = new URLSearchParams(window.location.search).get('join')
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [tab, setTab] = useState<Tab>('garage')
   // Invite-/Recovery-Link landet mit type=... im URL-Hash -> direkt Passwort setzen lassen
   const [showPw, setShowPw] = useState(() =>
@@ -56,14 +61,22 @@ export default function App() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    if (!session) { setIsAdmin(false); return }
+    supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
+      .then(({ data }) => setIsAdmin(!!data?.is_admin))
+  }, [session])
+
   if (!ready) return null
+  if (joinCode && !session) return <Join code={joinCode} />
   if (!session) return <Login />
   const userId = session.user.id
+  const visibleTabs = (Object.keys(TABS) as Tab[]).filter(t => t !== 'admin' || isAdmin)
 
   return (
     <div className="min-h-screen bg-gray-100">
       <nav className="bg-white shadow flex items-center gap-1 px-4 py-2">
-        {(Object.keys(TABS) as Tab[]).map(t => (
+        {visibleTabs.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -91,6 +104,7 @@ export default function App() {
         {tab === 'kalender' && <Calendar userId={userId} />}
         {tab === 'ledger' && <Ledger userId={userId} />}
         {tab === 'anleitung' && <Help />}
+        {tab === 'admin' && isAdmin && <Admin userId={userId} />}
       </main>
     </div>
   )

@@ -31,7 +31,7 @@ WG-Tool für **24 Garagenplätze** und **max. 50 User**. Platzbesitzer geben ihr
 
 - **Frontend**: React 19 + TypeScript + Tailwind v4, Vite-SPA, gehostet auf Vercel.
 - **Backend**: Supabase — Postgres (Auth, RLS, RPCs) + eine Edge Function (Deno). Kein eigener API-Server; das SPA spricht via `supabase-js` direkt mit Postgres.
-- **Auth**: E-Mail + Passwort (`signInWithPassword`). Kein Self-Signup — nur eingeladene User. Invite-/Reset-Link öffnet ein „Passwort setzen"-Formular in der App.
+- **Auth**: E-Mail + Passwort (`signInWithPassword`). Kein offener Self-Signup in Supabase. Registrierung nur über den geheimen Einladungs-Link `?join=CODE` (Admin erzeugt/rotiert ihn auf der Admin-Seite; die `join`-Edge-Function legt den User mit `email_confirm:true` an → keine Bestätigungs-Mail). Passwort-Reset-Link öffnet ein „Passwort setzen"-Formular.
 - **Zugriffskontrolle**: Row Level Security. Alle authenticated User dürfen **lesen** (Transparenz gewollt); Schreiben nur über enge Policies bzw. `security definer`-RPCs.
 - **Tests**: Vitest (Slot-/Preis-Logik). DB-Smoke-Test als SQL (`scripts/db-smoke.sql`).
 - **Supabase-Projekt-Ref**: `dvdasdgduhfalrtcjrdb`.
@@ -41,7 +41,7 @@ WG-Tool für **24 Garagenplätze** und **max. 50 User**. Platzbesitzer geben ihr
 ```
 src/
 ├── main.tsx                 # React entrypoint
-├── App.tsx                  # Auth-Gate + Tab-Shell (Garage/Kalender/Ledger/Anleitung) + Passwort-Formular
+├── App.tsx                  # Auth-Gate + Join-Routing + Tab-Shell (Garage/Kalender/Ledger/Anleitung/Admin) + Passwort-Formular
 ├── Login.tsx                # E-Mail+Passwort-Login, "Passwort vergessen"
 ├── index.css                # @import "tailwindcss"
 ├── components/
@@ -54,12 +54,17 @@ src/
 └── pages/
     ├── Garage.tsx           # Vogelperspektive (2×12 Grid), buchen/freigeben/stornieren
     ├── Calendar.tsx         # Monatsansicht, freie Plätze pro Tag, buchen
-    ├── Ledger.tsx           # Schulden-Liste, einseitiges Begleichen, Admin-Bereich
-    └── Help.tsx             # Statische Bedienungsanleitung für User (Tab "Anleitung")
+    ├── Ledger.tsx           # Schulden-Liste, einseitiges Begleichen
+    ├── Help.tsx             # Statische Bedienungsanleitung für User (Tab "Anleitung")
+    ├── Admin.tsx            # Admin-Seite: Plätze zuweisen, Einladungs-Link, User verwalten, Tagessatz/Zahltag
+    └── Join.tsx             # Selbstregistrierung über ?join=CODE-Link
 
 supabase/
 ├── migrations/              # Schema + RLS + RPCs (nur additiv, nie editieren)
-└── functions/zahltag/       # Edge Function: Zahltag-Mail an alle (admin-only, Resend)
+└── functions/
+    ├── zahltag/             # Edge Function: Zahltag-Mail an alle (admin-only, Resend)
+    ├── join/               # Edge Function: Selbstregistrierung (verify_jwt=false, gated durch invites.code)
+    └── delete-user/        # Edge Function: User löschen (admin-only)
 
 scripts/db-smoke.sql         # Transaktionaler DB-Smoke-Test (rollt selbst zurück)
 docs/superpowers/            # Spec + Implementierungsplan (Design-Historie)

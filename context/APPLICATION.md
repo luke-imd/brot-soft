@@ -5,9 +5,9 @@ Fachliche Regeln der Garagen-Verwaltung. Referenz-Design: `docs/superpowers/spec
 ## Rollen
 
 - **User**: hat ein Profil (`profiles`, 1:1 zu Supabase-Auth), ggf. Besitzer von Parkplätzen. Sieht alles, bucht fremde Plätze, gibt eigene frei, begleicht Schulden.
-- **Admin** (`profiles.is_admin = true`): zusätzlich Tagessatz ändern, Zahltag-Mail auslösen. User-Einladung & Platz-Zuordnung passieren im **Supabase Studio**, nicht in der App.
+- **Admin** (`profiles.is_admin = true`): sieht zusätzlich den Tab **Admin** — Plätze zuweisen, Einladungs-Link verwalten, User verwalten (Admin-Rechte vergeben, löschen), Tagessatz ändern, Zahltag-Mail auslösen.
 
-Geschlossene Community: kein Self-Signup. Admin lädt per E-Mail ein (Supabase Auth Invite), Login danach mit E-Mail + Passwort.
+Geschlossene Community: kein offener Self-Signup. Registrierung nur über den geheimen Einladungs-Link (`?join=CODE`), den der Admin auf der Admin-Seite erzeugt und teilt. Wer den Link hat, legt selbst Name/E-Mail/Passwort an und ist **sofort drin** (kein Bestätigungs-Mail). Login danach mit E-Mail + Passwort.
 
 ## Kern-Workflow
 
@@ -16,6 +16,8 @@ Geschlossene Community: kein Self-Signup. Admin lädt per E-Mail ein (Supabase A
 3. **Stornieren** — Vor Buchungsbeginn erlaubt: löscht die Buchung, gibt die Slots wieder frei (`free_slots.booking_id` → null) und löscht die Schuld. **Nicht** erlaubt, wenn die Buchung bereits begonnen hat ODER die Schuld schon als beglichen markiert wurde.
 4. **Begleichen** — Neben jedem offenen Ledger-Posten ein „Schulden beglichen"-Button. Einseitig: Schuldner **oder** Gläubiger darf klicken, wir glauben ohne Gegenbestätigung. Geloggt via `settled_at` + `settled_by`.
 5. **Zahltag** (Admin, ~1×/Jahr) — Button verschickt eine „Heute ist Zahltag"-Mail an alle User (via Resend Edge Function).
+6. **Registrieren** — Neuer Mitbewohner öffnet den Einladungs-Link, gibt Name/E-Mail/Passwort ein (`join`-Edge-Function, gated durch den geheimen Code + 50-User-Deckel) und kann die App sofort nutzen.
+7. **Verwalten** (Admin) — Plätze Besitzern zuordnen, Einladungs-Link rotieren, User zum Admin machen oder löschen.
 
 ## Business Rules (verbindlich)
 

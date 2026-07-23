@@ -10,26 +10,21 @@ type LedgerRow = {
 export default function Ledger({ userId }: { userId: string }) {
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [names, setNames] = useState<Map<string, string>>(new Map())
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [rate, setRate] = useState('')
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {
-    const [l, p, st] = await Promise.all([
+    const [l, p] = await Promise.all([
       supabase.from('ledger').select('*').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, name, is_admin'),
-      supabase.from('settings').select('day_rate_cents').single(),
+      supabase.from('profiles').select('id, name'),
     ])
-    const err = l.error ?? p.error ?? st.error
+    const err = l.error ?? p.error
     if (err) {
       setMsg(`Fehler beim Laden: ${err.message}`)
       return
     }
     setRows((l.data ?? []) as LedgerRow[])
     setNames(new Map((p.data ?? []).map(x => [x.id, x.name])))
-    setIsAdmin((p.data ?? []).some(x => x.id === userId && x.is_admin))
-    setRate(String((st.data?.day_rate_cents ?? 500) / 100))
-  }, [userId])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -39,19 +34,6 @@ export default function Ledger({ userId }: { userId: string }) {
     const { error } = await supabase.rpc('settle_ledger', { p_ledger_id: id })
     setMsg(error ? error.message : '')
     await load()
-  }
-
-  async function saveRate() {
-    const cents = Math.round(parseFloat(rate.replace(',', '.')) * 100)
-    const { error } = await supabase.from('settings')
-      .update({ day_rate_cents: cents }).eq('id', true)
-    setMsg(error ? error.message : `Tagessatz gespeichert: ${fmtEur(cents)}`)
-  }
-
-  async function zahltag() {
-    if (!confirm('Zahltag-E-Mail an alle User schicken?')) return
-    const { data, error } = await supabase.functions.invoke('zahltag')
-    setMsg(error ? `Fehler: ${error.message}` : `Verschickt an ${data?.sent ?? '?'} Empfänger.`)
   }
 
   const open = rows.filter(r => !r.settled_at)
@@ -99,26 +81,6 @@ export default function Ledger({ userId }: { userId: string }) {
           ))}
         </ul>
       </details>
-
-      {isAdmin && (
-        <section className="bg-white rounded-xl shadow p-4 space-y-3">
-          <h2 className="text-lg font-bold">Admin</h2>
-          <div className="flex items-center gap-2">
-            <label>Tagessatz (€):</label>
-            <input value={rate} onChange={e => setRate(e.target.value)}
-              className="border rounded p-1 w-20" />
-            <button onClick={saveRate} className="bg-blue-600 text-white rounded px-3 py-1">
-              Speichern
-            </button>
-          </div>
-          <button onClick={zahltag} className="bg-red-600 text-white rounded px-3 py-1">
-            📧 Zahltag-E-Mail an alle schicken
-          </button>
-          <p className="text-xs text-gray-500">
-            User einladen & Plätze zuordnen: Supabase Studio (Auth → Invite, Tabelle spots → owner_id).
-          </p>
-        </section>
-      )}
     </div>
   )
 }

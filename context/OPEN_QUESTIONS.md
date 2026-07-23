@@ -2,16 +2,17 @@
 
 ## Offene manuelle Setup-Schritte (vor erstem echten Einsatz)
 
-- [ ] **Supabase Signups deaktivieren** (Authentication → Sign In/Up), damit nur eingeladene User reinkommen.
-- [ ] **Admin setzen**: eigenes `profiles.is_admin = true`.
-- [ ] **Plätze zuordnen**: `spots.owner_id` je Platz eintragen (24 Plätze, 2×12). Bis dahin sind alle Plätze „ohne Besitzer" und rendern grau.
+- [x] **Supabase Signups deaktivieren** (Authentication → Sign In/Up) — Registrierung läuft über den `?join=`-Link, nicht über offenen Signup.
+- [x] **Admin setzen**: erster Admin gesetzt (`profiles.is_admin = true`). Weitere Admins jetzt in der App (Tab Admin → User verwalten).
+- [x] **Plätze zuordnen**: jetzt in der App (Tab Admin → Plätze zuweisen). Bis zugeordnet sind Plätze „ohne Besitzer" und rendern grau.
+- [x] **User einladen**: Einladungs-Link in der App (Tab Admin → Einladungs-Link) teilen. Neue User sind sofort drin, keine E-Mail nötig.
 - [ ] **Resend einrichten** für den Zahltag-Versand: Account, Domain verifizieren (sonst Testmodus → nur an eigene Adresse), Secret `RESEND_API_KEY` bei der Edge Function hinterlegen, `from:` in `supabase/functions/zahltag/index.ts` auf die eigene Domain setzen.
 - [ ] **Zahltag end-to-end testen**: Der Admin-vs-Nicht-Admin-Pfad der `zahltag`-Function ist bislang nur per Code-Review + 403-Curl (unauthentifiziert) verifiziert; der echte Versand + der Admin-Erfolgspfad wurden noch nie ausgeführt (Secret fehlte). Einmal manuell auslösen, sobald `RESEND_API_KEY` gesetzt ist.
 - [ ] **Vercel Site URL**: nach Deploy in Supabase Authentication → URL Configuration die Site URL auf die Vercel-Domain setzen (sonst zeigen Invite-/Reset-Links auf localhost).
 
 ## Empfehlung: Resend als Custom SMTP
 
-Supabases eingebauter Mailer ist im Free Tier hart limitiert (wenige Auth-Mails/Stunde) — beim Einladen von ~50 Usern spürbar. Resend als Custom SMTP in Supabase eintragen (Authentication → Emails → SMTP), dann laufen auch Invites/Resets über Resend (3.000/Monat) und das Stundenlimit lässt sich hochdrehen. Braucht dieselbe verifizierte Domain wie der Zahltag-Versand.
+Supabases eingebauter Mailer ist im Free Tier hart limitiert (wenige Auth-Mails/Stunde). Seit der Selbstregistrierung über den `?join=`-Link verschickt die **Registrierung gar keine E-Mails** mehr (`email_confirm: true`) — das Auth-Mail-Limit betrifft nur noch „Passwort vergessen". Für den Zahltag-Versand bleibt Resend nötig; optional Resend zusätzlich als Custom SMTP eintragen (Authentication → Emails → SMTP), dann laufen auch Passwort-Resets über Resend. Braucht dieselbe verifizierte Domain.
 
 ## Bekannte kleinere Limitierungen (bewusst akzeptiert für diese Größe)
 
@@ -20,7 +21,9 @@ Supabases eingebauter Mailer ist im Free Tier hart limitiert (wenige Auth-Mails/
 - **Zeitzone**: `current_date` in den RPCs ist UTC, User sind CET/CEST — 1–2 h Slack an den Tagesgrenzen von Buchen/Stornieren. Bei dieser Nutzung irrelevant.
 - **DB-Smoke-Test** (`scripts/db-smoke.sql`) deckt Buchung/Doppelbuchung/Storno ab, aber nicht: Halbtags-Betrag, `settle_ledger`, Storno-Fenster-Grenze, RLS-Deny-Pfade. Ergänzen, wenn die Datei ohnehin angefasst wird.
 - **Security-Advisor-Warnings**: `handle_new_user()` und `is_admin()` sind an `anon`/`authenticated` EXECUTE-granted (nicht exploitbar — Trigger-Funktion ist per PostgREST nicht aufrufbar, `is_admin` gibt für anon false zurück). Optional per Migration `revoke execute ... from public, anon, authenticated` stummschalten.
-- **User löschen**: Ein User mit Platz-Besitz oder Buchungs-/Ledger-Historie lässt sich wegen FK-RESTRICT nicht direkt löschen — Admin-Ops-Stolperstein.
+- **User löschen** (Admin-Seite): geht nur für User **ohne** Buchungen/Ledger-Historie (FK-RESTRICT). Die `delete-user`-Function prüft das vorab und meldet es klar; Platz-Besitz wird beim Löschen automatisch gelöst.
+- **Registrierungs-50-User-Deckel ist nicht race-safe** (TOCTOU zwischen Count und Anlegen in `join`): bei gleichzeitigen Registrierungen könnte der Stand minimal über 50 rutschen. Bei einer WG bewusst als harmloser Overshoot akzeptiert; bei Bedarf per DB-Trigger hart machen.
+- **Einladungs-Link ist ein geteiltes Geheimnis**: wer ihn hat, kann sich registrieren (bis zum 50-Deckel). Bei Leak in der Admin-Seite „Neuen Link erzeugen". Registrierung prüft die E-Mail nicht auf Besitz (`email_confirm: true`) — bei einer geschlossenen WG akzeptiert.
 
 ## Fragen an den Auftraggeber
 

@@ -23,22 +23,27 @@ DB-Smoke-Test: `scripts/db-smoke.sql` im Supabase SQL Editor ausführen (rollt s
 ## Einmalige Einrichtung (Supabase Studio)
 
 1. **Signups deaktivieren:** Authentication → Sign In / Up → "Allow new users to sign up" aus.
-   (Login geht per E-Mail + Passwort; rein kommen nur eingeladene User. E-Mails fallen nur
-   bei Einladung und "Passwort vergessen" an.)
-2. **Admin setzen:** Tabelle `profiles` → bei dir `is_admin = true`.
-3. **Resend:** Account auf resend.com, API-Key erzeugen, in Supabase unter
-   Edge Functions → zahltag → Secrets als `RESEND_API_KEY` hinterlegen.
+   (Registrierung läuft über den Einladungs-Link in der App, nicht über offenen Signup.)
+2. **Ersten Admin setzen:** Tabelle `profiles` → bei dir `is_admin = true`. Weitere Admins
+   danach in der App (Tab "Admin" → User verwalten).
+3. **Resend** (nur für den Zahltag-Versand): Account auf resend.com, API-Key erzeugen, in
+   Supabase unter Edge Functions → zahltag → Secrets als `RESEND_API_KEY` hinterlegen.
    Ohne eigene verifizierte Domain versendet Resend nur an die eigene Account-Adresse —
    für den echten Rundversand Domain bei Resend verifizieren und `from:` in
    `supabase/functions/zahltag/index.ts` anpassen.
 
-## Betrieb (Admin-Aufgaben)
+## Betrieb (Admin-Aufgaben) — alles in der App, Tab "Admin"
 
-- **User einladen:** Authentication → Users → "Invite user" (max. 50). Der Invite-Link
-  öffnet die App mit einem "Neues Passwort"-Formular; danach loggt sich der User immer
-  mit E-Mail + Passwort ein (Formular jederzeit über den "Passwort"-Button in der Leiste).
-- **Platz zuordnen:** Tabelle `spots` → `owner_id` des Users eintragen (24 Plätze, 2 Reihen à 12).
-- **Tagessatz ändern / Zahltag-Mail:** in der App, Tab "Ledger" → Admin-Bereich.
+- **User einladen:** "Einladungs-Link" kopieren und teilen. Wer den Link hat, registriert
+  sich selbst (Name/E-Mail/Passwort) und ist sofort drin — keine E-Mail nötig, max. 50 User.
+  Bei Verdacht auf Leak: "Neuen Link erzeugen" (alter wird ungültig).
+- **Platz zuordnen:** unter "Plätze zuweisen" pro Platz (1–24) den Besitzer wählen.
+- **User verwalten:** zum Admin machen / Admin entziehen / löschen (Löschen geht nur, wenn der
+  User keine Buchungen oder Schulden(-Historie) hat).
+- **Tagessatz ändern / Zahltag-Mail:** unter "Tagessatz & Zahltag".
+
+Registrierung verschickt keine E-Mails (`email_confirm: true`). Nur "Passwort vergessen" und
+der Zahltag-Versand nutzen E-Mail.
 
 ## Deploy (Vercel)
 
