@@ -27,7 +27,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <form onSubmit={submit} className="card fade-in w-full max-w-xs space-y-4 p-7">
         <div className="flex items-center gap-2.5">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-xl font-extrabold text-white">P</span>
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-zinc-900 text-xl font-extrabold text-white">P</span>
           <div>
             <h1 className="text-xl font-extrabold leading-tight tracking-tight">Garage</h1>
             <p className="text-sm text-zinc-500">Anmelden</p>

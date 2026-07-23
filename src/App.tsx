@@ -88,6 +88,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [userName, setUserName] = useState('')
   const [tab, setTab] = useState<Tab>('garage')
   const [showPw, setShowPw] = useState(fromAuthLink)
   // "recovery" nur für die automatisch geöffnete Instanz; danach ist es ein normales "Passwort ändern"
@@ -103,9 +104,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!session) { setIsAdmin(false); return }
-    supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
-      .then(({ data }) => setIsAdmin(!!data?.is_admin))
+    if (!session) { setIsAdmin(false); setUserName(''); return }
+    supabase.from('profiles').select('is_admin, name').eq('id', session.user.id).single()
+      .then(({ data }) => { setIsAdmin(!!data?.is_admin); setUserName(data?.name ?? '') })
   }, [session])
 
   if (!ready) return null
@@ -113,37 +114,50 @@ export default function App() {
   if (!session) return <Login />
   const userId = session.user.id
   const visibleTabs = (Object.keys(TABS) as Tab[]).filter(t => t !== 'admin' || isAdmin)
+  const nameWords = userName.trim().split(/\s+/)
+  const userInitials = userName
+    ? (nameWords.length > 1 ? nameWords[0][0] + nameWords[1][0] : userName.slice(0, 2)).toUpperCase()
+    : '·'
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-zinc-200/80 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-2.5">
-          <span className="mr-2 flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-600 text-lg font-extrabold text-white">P</span>
-            <span className="text-lg font-extrabold tracking-tight">Garage</span>
+      <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/85 backdrop-blur-[10px]">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3.5 gap-y-2 px-5 py-[11px]">
+          <span className="mr-1.5 flex items-center gap-[11px]">
+            <span className="grid h-9 w-9 place-items-center rounded-[11px] bg-zinc-900 text-[19px] font-extrabold tracking-tight text-white shadow-md">P</span>
+            <span className="flex flex-col leading-[1.02]">
+              <span className="text-[19px] font-extrabold tracking-tight">Garage</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-zinc-400">WG-Parkplätze</span>
+            </span>
           </span>
           <nav className="order-last flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
             {visibleTabs.map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                  tab === t ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70 hover:text-zinc-900'
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13.5px] font-bold transition-colors ${
+                  tab === t ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900'
                 }`}
               >
                 {TABS[t]}
               </button>
             ))}
           </nav>
+          <span className="ml-auto flex items-center gap-2">
+            <span className="grid h-[30px] w-[30px] place-items-center rounded-full bg-zinc-200 text-xs font-extrabold text-zinc-700">
+              {userInitials}
+            </span>
+            <span className="hidden text-sm font-semibold text-zinc-700 sm:inline">{userName}</span>
+          </span>
           <button
             onClick={() => setShowPw(true)}
-            className="ml-auto shrink-0 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900"
+            className="shrink-0 text-sm font-semibold text-zinc-500 transition-colors hover:text-zinc-900"
           >
             Passwort ändern
           </button>
           <button
             onClick={() => supabase.auth.signOut()}
-            className="text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900"
+            className="text-sm font-semibold text-zinc-500 transition-colors hover:text-zinc-900"
           >
             Logout
           </button>
@@ -155,7 +169,7 @@ export default function App() {
           onClose={() => { setShowPw(false); setRecovery(false) }}
         />
       )}
-      <main className="mx-auto max-w-5xl p-4 sm:p-6">
+      <main className="mx-auto max-w-6xl p-4 sm:p-6">
         <div key={tab} className="fade-in">
           {tab === 'garage' && <Garage userId={userId} />}
           {tab === 'kalender' && <Calendar userId={userId} />}
