@@ -1,0 +1,15 @@
+{
+  "projectId": "9877639e-320b-4699-a7e4-28a55142a37b",
+  "pkg": "brot-soft",
+  "globalName": "GarageDS",
+  "shape": "package",
+  "buildCmd": "npm run build && mkdir -p .design-sync/.cache && cp dist/assets/index-*.css .design-sync/.cache/app.css",
+  "srcDir": "src/components",
+  "componentSrcMap": { "RangeForm": "src/components/RangeForm.tsx" },
+  "dtsPropsFor": {
+    "RangeForm": "label: string; initialDate?: string; onSubmit: (slots: Array<{ date: string; half: 'am' | 'pm' }>) => Promise<void>;"
+  },
+  "cssEntry": ".design-sync/.cache/app.css",
+  "extraFonts": [".design-sync/fonts/barlow.css"],
+  "readmeHeader": ".design-sync/conventions.md"
+}

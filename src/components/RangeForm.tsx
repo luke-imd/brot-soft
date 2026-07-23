@@ -3,6 +3,11 @@ import { localDate, slotRange, type Half, type Slot } from '../lib/slots'
 
 const HALVES: [Half, string][] = [['am', 'Vormittag'], ['pm', 'Nachmittag']]
 
+/**
+ * Zeitraum-Formular „von–bis" mit Halbtags-Auswahl (Vormittag/Nachmittag).
+ * Rechnet den Zeitraum in Halbtags-Slots um und meldet sie an onSubmit;
+ * der Button zeigt die Slot-Anzahl und trägt das übergebene Label.
+ */
 export default function RangeForm({ label, initialDate, onSubmit }: {
   label: string
   initialDate?: string
