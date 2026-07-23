@@ -20,6 +20,11 @@ export default function Ledger({ userId }: { userId: string }) {
       supabase.from('profiles').select('id, name, is_admin'),
       supabase.from('settings').select('day_rate_cents').single(),
     ])
+    const err = l.error ?? p.error ?? st.error
+    if (err) {
+      setMsg(`Fehler beim Laden: ${err.message}`)
+      return
+    }
     setRows((l.data ?? []) as LedgerRow[])
     setNames(new Map((p.data ?? []).map(x => [x.id, x.name])))
     setIsAdmin((p.data ?? []).some(x => x.id === userId && x.is_admin))
