@@ -54,19 +54,19 @@ export type Database = {
         Row: {
           booking_id: string | null
           date: string
-          half: string
+          hour: number
           spot_id: number
         }
         Insert: {
           booking_id?: string | null
           date: string
-          half: string
+          hour: number
           spot_id: number
         }
         Update: {
           booking_id?: string | null
           date?: string
-          half?: string
+          hour?: number
           spot_id?: number
         }
         Relationships: [
@@ -168,16 +168,19 @@ export type Database = {
           id: string
           is_admin: boolean
           name: string
+          seeker: boolean
         }
         Insert: {
           id: string
           is_admin?: boolean
           name: string
+          seeker?: boolean
         }
         Update: {
           id?: string
           is_admin?: boolean
           name?: string
+          seeker?: boolean
         }
         Relationships: []
       }
@@ -198,20 +201,17 @@ export type Database = {
       }
       spots: {
         Row: {
-          grid_col: number
-          grid_row: number
+          active: boolean
           id: number
           owner_id: string | null
         }
         Insert: {
-          grid_col: number
-          grid_row: number
+          active?: boolean
           id: number
           owner_id?: string | null
         }
         Update: {
-          grid_col?: number
-          grid_row?: number
+          active?: boolean
           id?: number
           owner_id?: string | null
         }
@@ -232,6 +232,7 @@ export type Database = {
     Functions: {
       book_spot: { Args: { p_slots: Json; p_spot_id: number }; Returns: string }
       cancel_booking: { Args: { p_booking_id: string }; Returns: undefined }
+      claim_spot: { Args: { p_spot_id: number }; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
       settle_ledger: { Args: { p_ledger_id: string }; Returns: undefined }
     }
