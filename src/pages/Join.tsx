@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Selbstregistrierung über den geheimen Einladungs-Link (?join=CODE).
@@ -7,8 +7,18 @@ export default function Join({ code }: { code: string }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [seeker, setSeeker] = useState(false)
+  const [hasSpot, setHasSpot] = useState(false)
+  const [spotId, setSpotId] = useState('')
+  const [freeSpots, setFreeSpots] = useState<number[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    supabase.functions.invoke('join', { body: { code, list: true } })
+      .then(({ data }) => setFreeSpots(data?.ok ? data.spots ?? [] : []))
+      .catch(() => setFreeSpots([]))
+  }, [code])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -16,13 +26,17 @@ export default function Join({ code }: { code: string }) {
     setError('')
     try {
       const { data, error: fnError } = await supabase.functions.invoke('join', {
-        body: { code, name, email, password },
+        body: {
+          code, name, email, password, seeker,
+          spot_id: hasSpot && spotId ? Number(spotId) : null,
+        },
       })
       if (fnError) throw new Error('Registrierung fehlgeschlagen. Bitte später erneut versuchen.')
       if (!data?.ok) {
         setError(data?.error ?? 'Registrierung fehlgeschlagen.')
         return
       }
+      if (data.warning) alert(data.warning)
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) {
         setError('Account angelegt, aber Login fehlgeschlagen. Bitte auf der Startseite einloggen.')
@@ -73,6 +87,28 @@ export default function Join({ code }: { code: string }) {
           placeholder="Passwort (mind. 6 Zeichen)"
           className="input w-full"
         />
+        <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={seeker} onChange={e => setSeeker(e.target.checked)} />
+            <span>Ich suche einen Parkplatz</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={hasSpot} onChange={e => setHasSpot(e.target.checked)} />
+            <span>Ich habe einen Parkplatz</span>
+          </label>
+          {hasSpot && (
+            freeSpots.length > 0 ? (
+              <select required value={spotId} onChange={e => setSpotId(e.target.value)} className="input w-full">
+                <option value="">Platz wählen…</option>
+                {freeSpots.map(id => <option key={id} value={id}>Platz {id}</option>)}
+              </select>
+            ) : (
+              <p className="text-xs text-zinc-500">
+                Aktuell ist kein Platz frei wählbar — du kannst ihn später im Kalender eintragen.
+              </p>
+            )
+          )}
+        </div>
         <button disabled={busy} className="btn btn-primary w-full">
           {busy ? 'Moment…' : 'Account anlegen'}
         </button>

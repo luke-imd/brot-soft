@@ -11,27 +11,14 @@ const MAX_USERS = 50
 
 // Öffentliche Selbstregistrierung, gated durch den geheimen invites.code.
 // Kein JWT nötig (verify_jwt=false) — der Code ist das einzige Tor.
+// Mit { list: true } liefert sie stattdessen die besitzerlosen aktiven Plätze
+// (fürs Platz-Dropdown der Join-Seite; anon darf per RLS nichts lesen).
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
     const body = await req.json().catch(() => ({}))
     const code = String(body.code ?? '')
-    const name = String(body.name ?? '').trim()
-    const email = String(body.email ?? '').trim().toLowerCase()
-    const password = String(body.password ?? '')
-
-    if (!code || !name || !email || !password) {
-      return json({ ok: false, error: 'Bitte alle Felder ausfüllen.' })
-    }
-    if (name.length > 100 || email.length > 254 || password.length > 128) {
-      return json({ ok: false, error: 'Eingabe zu lang.' })
-    }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      return json({ ok: false, error: 'Ungültige E-Mail-Adresse.' })
-    }
-    if (password.length < 6) {
-      return json({ ok: false, error: 'Passwort muss mindestens 6 Zeichen haben.' })
-    }
+    if (!code) return json({ ok: false, error: 'Ungültiger Einladungs-Link.' })
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -43,6 +30,34 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: 'Ungültiger oder abgelaufener Einladungs-Link.' })
     }
 
+    if (body.list) {
+      const { data: spots } = await admin.from('spots').select('id')
+        .is('owner_id', null).eq('active', true).order('id')
+      return json({ ok: true, spots: (spots ?? []).map((s) => s.id) })
+    }
+
+    const name = String(body.name ?? '').trim()
+    const email = String(body.email ?? '').trim().toLowerCase()
+    const password = String(body.password ?? '')
+    const seeker = Boolean(body.seeker)
+    const spotId = body.spot_id == null ? null : Number(body.spot_id)
+
+    if (!name || !email || !password) {
+      return json({ ok: false, error: 'Bitte alle Felder ausfüllen.' })
+    }
+    if (name.length > 100 || email.length > 254 || password.length > 128) {
+      return json({ ok: false, error: 'Eingabe zu lang.' })
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return json({ ok: false, error: 'Ungültige E-Mail-Adresse.' })
+    }
+    if (password.length < 6) {
+      return json({ ok: false, error: 'Passwort muss mindestens 6 Zeichen haben.' })
+    }
+    if (spotId !== null && !Number.isInteger(spotId)) {
+      return json({ ok: false, error: 'Ungültiger Platz.' })
+    }
+
     const { count } = await admin.from('profiles').select('*', { count: 'exact', head: true })
     if ((count ?? 0) >= MAX_USERS) {
       return json({ ok: false, error: 'Maximale Nutzerzahl erreicht.' })
@@ -50,19 +65,33 @@ Deno.serve(async (req) => {
 
     // email_confirm: true -> sofort einsatzbereit, kein Bestätigungs-Mail nötig.
     // Der Trigger handle_new_user legt das Profil mit name aus user_metadata an.
-    const { error } = await admin.auth.admin.createUser({
+    const { data, error } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: { name },
     })
-    if (error) {
-      const msg = /already|exist|registered/i.test(error.message)
+    if (error || !data.user) {
+      const msg = /already|exist|registered/i.test(error?.message ?? '')
         ? 'Diese E-Mail ist schon registriert.'
-        : error.message
+        : (error?.message ?? 'Registrierung fehlgeschlagen.')
       return json({ ok: false, error: msg })
     }
-    return json({ ok: true })
+
+    if (seeker) {
+      await admin.from('profiles').update({ seeker: true }).eq('id', data.user.id)
+    }
+
+    let warning: string | undefined
+    if (spotId !== null) {
+      // bedingtes UPDATE = race-sicher; 0 Zeilen -> Platz war inzwischen weg
+      const { data: claimed } = await admin.from('spots').update({ owner_id: data.user.id })
+        .eq('id', spotId).is('owner_id', null).eq('active', true).select('id')
+      if (!claimed?.length) {
+        warning = 'Dein Wunsch-Platz wurde inzwischen vergeben — du kannst ihn später im Kalender neu wählen oder den Admin fragen.'
+      }
+    }
+    return json({ ok: true, warning })
   } catch (err) {
     console.error('join error:', err)
     return json({ ok: false, error: 'Serverfehler. Bitte später erneut versuchen.' }, 500)
