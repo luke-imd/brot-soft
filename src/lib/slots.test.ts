@@ -1,42 +1,66 @@
 import { describe, expect, it } from 'vitest'
-import { fmtEur, localDate, priceCents, slotRange } from './slots'
+import { fmtEur, fmtSpan, hourRange, hourSpans, localDate, priceCents } from './slots'
 
-describe('slotRange', () => {
-  it('expands a full single day into am+pm', () => {
-    expect(slotRange('2026-08-01', 'am', '2026-08-01', 'pm')).toEqual([
-      { date: '2026-08-01', half: 'am' },
-      { date: '2026-08-01', half: 'pm' },
+describe('hourRange', () => {
+  it('expands a partial single day, end exclusive', () => {
+    expect(hourRange('2026-08-01', 11, '2026-08-01', 13)).toEqual([
+      { date: '2026-08-01', hour: 11 },
+      { date: '2026-08-01', hour: 12 },
     ])
   })
 
-  it('handles pm start and am end across days', () => {
-    expect(slotRange('2026-08-01', 'pm', '2026-08-02', 'am')).toEqual([
-      { date: '2026-08-01', half: 'pm' },
-      { date: '2026-08-02', half: 'am' },
-    ])
+  it('expands a full day with endHour 24', () => {
+    const slots = hourRange('2026-08-01', 0, '2026-08-01', 24)
+    expect(slots).toHaveLength(24)
+    expect(slots[0]).toEqual({ date: '2026-08-01', hour: 0 })
+    expect(slots[23]).toEqual({ date: '2026-08-01', hour: 23 })
   })
 
-  it('crosses month boundaries', () => {
-    expect(slotRange('2026-08-31', 'pm', '2026-09-01', 'pm')).toEqual([
-      { date: '2026-08-31', half: 'pm' },
-      { date: '2026-09-01', half: 'am' },
-      { date: '2026-09-01', half: 'pm' },
+  it('crosses days and months', () => {
+    const slots = hourRange('2026-08-31', 22, '2026-09-01', 2)
+    expect(slots).toEqual([
+      { date: '2026-08-31', hour: 22 },
+      { date: '2026-08-31', hour: 23 },
+      { date: '2026-09-01', hour: 0 },
+      { date: '2026-09-01', hour: 1 },
     ])
   })
 
   it('returns [] for reversed ranges', () => {
-    expect(slotRange('2026-08-02', 'am', '2026-08-01', 'am')).toEqual([])
-    expect(slotRange('2026-08-01', 'pm', '2026-08-01', 'am')).toEqual([])
+    expect(hourRange('2026-08-02', 0, '2026-08-01', 24)).toEqual([])
+    expect(hourRange('2026-08-01', 13, '2026-08-01', 13)).toEqual([])
+    expect(hourRange('2026-08-01', 13, '2026-08-01', 11)).toEqual([])
   })
 })
 
 describe('priceCents', () => {
-  it('charges half the day rate per slot', () => {
-    expect(priceCents(2, 500)).toBe(500)
-    expect(priceCents(3, 500)).toBe(750)
+  it('charges the full day rate per distinct date, hours do not matter', () => {
+    expect(priceCents(hourRange('2026-08-01', 11, '2026-08-01', 13), 300)).toBe(300)
+    expect(priceCents(hourRange('2026-08-01', 15, '2026-08-03', 18), 300)).toBe(900)
   })
-  it('rounds odd rates', () => {
-    expect(priceCents(1, 501)).toBe(251)
+  it('returns 0 for empty slots', () => {
+    expect(priceCents([], 300)).toBe(0)
+  })
+})
+
+describe('hourSpans', () => {
+  it('merges consecutive hours into [from, to) spans', () => {
+    expect(hourSpans([8, 9, 10, 15, 16])).toEqual([[8, 11], [15, 17]])
+  })
+  it('handles unsorted input and duplicates', () => {
+    expect(hourSpans([10, 8, 9, 9])).toEqual([[8, 11]])
+  })
+  it('returns [] for empty input', () => {
+    expect(hourSpans([])).toEqual([])
+  })
+})
+
+describe('fmtSpan', () => {
+  it('formats a span', () => {
+    expect(fmtSpan([8, 12])).toBe('8–12 Uhr')
+  })
+  it('formats the full day as ganztags', () => {
+    expect(fmtSpan([0, 24])).toBe('ganztags')
   })
 })
 
