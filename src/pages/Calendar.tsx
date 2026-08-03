@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { localDate, type Half, type Slot } from '../lib/slots'
+import { fmtSpan, hourSpans, localDate, type Slot } from '../lib/slots'
 import RangeForm from '../components/RangeForm'
 
-type FreeRow = { spot_id: number; date: string; half: Half; booking_id: string | null }
+type FreeRow = { spot_id: number; date: string; hour: number; booking_id: string | null }
+type SpotRow = { id: number; owner_id: string | null; active: boolean }
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-export default function Calendar(_props: { userId: string }) {
+export default function Calendar({ userId }: { userId: string }) {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth()) // 0-basiert
   const [free, setFree] = useState<FreeRow[]>([])
+  const [spots, setSpots] = useState<SpotRow[]>([])
+  const [rate, setRate] = useState(300)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [claimId, setClaimId] = useState('')
+  const [msg, setMsg] = useState('')
   const [loadError, setLoadError] = useState('')
 
   const first = `${year}-${pad(month + 1)}-01`
@@ -20,14 +25,21 @@ export default function Calendar(_props: { userId: string }) {
   const last = `${year}-${pad(month + 1)}-${pad(daysInMonth)}`
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from('free_slots').select('*')
-      .gte('date', first).lte('date', last).is('booking_id', null)
-    if (error) {
-      setLoadError(`Fehler beim Laden: ${error.message}`)
+    const [f, s, st] = await Promise.all([
+      supabase.from('free_slots').select('*')
+        .gte('date', first).lte('date', last).is('booking_id', null),
+      supabase.from('spots').select('id, owner_id, active').order('id'),
+      supabase.from('settings').select('day_rate_cents').single(),
+    ])
+    const err = f.error ?? s.error ?? st.error
+    if (err) {
+      setLoadError(`Fehler beim Laden: ${err.message}`)
       return
     }
     setLoadError('')
-    setFree((data ?? []) as FreeRow[])
+    setFree((f.data ?? []) as FreeRow[])
+    setSpots((s.data ?? []) as SpotRow[])
+    setRate(st.data?.day_rate_cents ?? 300)
   }, [first, last])
 
   useEffect(() => { load() }, [load])
@@ -39,11 +51,11 @@ export default function Calendar(_props: { userId: string }) {
     setSelectedDay(null)
   }
 
-  // Tag -> Map<spot_id, Half[]>
+  // Tag -> Map<spot_id, freie Stunden>
   function spotsOn(date: string) {
-    const m = new Map<number, Half[]>()
+    const m = new Map<number, number[]>()
     for (const f of free.filter(x => x.date === date)) {
-      m.set(f.spot_id, [...(m.get(f.spot_id) ?? []), f.half])
+      m.set(f.spot_id, [...(m.get(f.spot_id) ?? []), f.hour])
     }
     return m
   }
@@ -51,16 +63,50 @@ export default function Calendar(_props: { userId: string }) {
   async function book(spotId: number, slots: Slot[]) {
     const { error } = await supabase.rpc('book_spot', { p_spot_id: spotId, p_slots: slots })
     if (error) throw new Error(error.message)
+    setMsg(`Platz ${spotId} gebucht ✓`)
+    await load()
+  }
+
+  async function freeUp(spotId: number, slots: Slot[]) {
+    const { error } = await supabase.from('free_slots').upsert(
+      slots.map(s => ({ spot_id: spotId, date: s.date, hour: s.hour })),
+      { onConflict: 'spot_id,date,hour', ignoreDuplicates: true },
+    )
+    if (error) throw new Error(error.message)
+    setMsg(`Platz ${spotId} freigegeben ✓`)
+    await load()
+  }
+
+  async function retract(spotId: number, slots: Slot[]) {
+    // stundengenau löschen: eine Query pro betroffenem Tag
+    for (const date of [...new Set(slots.map(s => s.date))]) {
+      const hours = slots.filter(s => s.date === date).map(s => s.hour)
+      const { error } = await supabase.from('free_slots').delete()
+        .eq('spot_id', spotId).eq('date', date).is('booking_id', null).in('hour', hours)
+      if (error) throw new Error(error.message)
+    }
+    setMsg('Freigabe zurückgezogen')
+    await load()
+  }
+
+  async function claim() {
+    const { error } = await supabase.rpc('claim_spot', { p_spot_id: Number(claimId) })
+    setMsg(error ? error.message : `Platz ${claimId} gehört jetzt dir ✓`)
     await load()
   }
 
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7 // Mo=0
   const today = localDate()
   const daySpots = selectedDay ? spotsOn(selectedDay) : null
+  const mySpots = spots.filter(s => s.owner_id === userId)
+  const claimable = spots.filter(s => !s.owner_id && s.active)
+  const eyebrow = 'mb-2 text-[11px] font-extrabold uppercase tracking-wide text-zinc-500'
 
   return (
     <div className="space-y-4">
       {loadError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>}
+      {msg && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{msg}</p>}
+
       <div className="flex items-center gap-3">
         <button onClick={() => shift(-1)} aria-label="Voriger Monat"
           className="btn btn-outline h-9 w-9 rounded-full px-0">←</button>
@@ -104,21 +150,73 @@ export default function Calendar(_props: { userId: string }) {
 
       {selectedDay && daySpots && (
         <div className="card fade-in space-y-3">
-          <h3 className="font-bold tracking-tight">{selectedDay}</h3>
-          {daySpots.size === 0 && <p className="text-zinc-500">Keine freien Plätze.</p>}
-          {[...daySpots.entries()].sort(([a], [b]) => a - b).map(([spotId, halves]) => (
-            <details key={spotId} className="rounded-xl border border-zinc-200 p-3 transition-colors open:bg-zinc-50">
-              <summary className="cursor-pointer select-none text-sm font-medium">
-                Platz {spotId} — frei: {halves.sort().map(h => h === 'am' ? 'Vormittag' : 'Nachmittag').join(' + ')}
-              </summary>
-              <div className="pt-3">
-                <RangeForm key={`cal-${spotId}-${selectedDay}`} label="Buchen" initialDate={selectedDay}
-                  onSubmit={slots => book(spotId, slots)} />
-              </div>
-            </details>
-          ))}
+          <h3 className="font-bold tracking-tight">
+            {new Date(`${selectedDay}T00:00:00`).toLocaleDateString('de-AT', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </h3>
+          {daySpots.size === 0 && <p className="text-zinc-500">Keine freien Plätze an diesem Tag.</p>}
+          {[...daySpots.entries()].sort(([a], [b]) => a - b)
+            .filter(([spotId]) => spots.find(s => s.id === spotId)?.owner_id !== userId)
+            .map(([spotId, hours]) => (
+              <details key={spotId} className="rounded-xl border border-zinc-200 p-3 transition-colors open:bg-zinc-50">
+                <summary className="cursor-pointer select-none text-sm font-medium">
+                  Platz {spotId} — frei: {hourSpans(hours).map(fmtSpan).join(', ')}
+                </summary>
+                <div className="pt-3">
+                  <RangeForm key={`cal-${spotId}-${selectedDay}`} label="Buchen"
+                    initialDate={selectedDay} rateCents={rate}
+                    onSubmit={slots => book(spotId, slots)} />
+                </div>
+              </details>
+            ))}
         </div>
       )}
+
+      <div className="card space-y-3">
+        <h2 className="text-lg font-bold tracking-tight">Mein Platz</h2>
+        {mySpots.length > 0 ? (
+          mySpots.map(spot => (
+            <details key={spot.id} className="rounded-xl border border-zinc-200 p-3 transition-colors open:bg-zinc-50">
+              <summary className="cursor-pointer select-none text-sm font-medium">
+                Platz {spot.id} — freigeben oder Freigabe zurückziehen
+              </summary>
+              <div className="grid gap-4 pt-3">
+                <div>
+                  <h3 className={eyebrow}>Zeitraum freigeben</h3>
+                  <RangeForm key={`free-${spot.id}-${selectedDay}`} label="Freigeben"
+                    initialDate={selectedDay ?? undefined}
+                    onSubmit={slots => freeUp(spot.id, slots)} />
+                </div>
+                <div className="border-t border-zinc-200 pt-3.5">
+                  <h3 className={eyebrow}>Freigabe zurückziehen</h3>
+                  <RangeForm key={`retract-${spot.id}-${selectedDay}`} label="Zurückziehen"
+                    initialDate={selectedDay ?? undefined}
+                    onSubmit={slots => retract(spot.id, slots)} />
+                </div>
+              </div>
+            </details>
+          ))
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-zinc-600">
+              Du hast noch keinen Platz eingetragen. Wenn du einen Garagenplatz hast, trag ihn hier ein —
+              dann kannst du ihn bei Abwesenheit freigeben.
+            </p>
+            {claimable.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={claimId} onChange={e => setClaimId(e.target.value)} className="input">
+                  <option value="">Platz wählen…</option>
+                  {claimable.map(s => <option key={s.id} value={s.id}>Platz {s.id}</option>)}
+                </select>
+                <button onClick={claim} disabled={!claimId} className="btn btn-primary">
+                  Das ist mein Platz
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-400">Aktuell sind alle Plätze vergeben — bei Fragen an den Admin wenden.</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
