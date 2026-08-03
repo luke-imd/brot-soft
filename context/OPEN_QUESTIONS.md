@@ -16,16 +16,16 @@ Supabases eingebauter Mailer ist im Free Tier hart limitiert (wenige Auth-Mails/
 
 ## Bekannte kleinere Limitierungen (bewusst akzeptiert für diese Größe)
 
-- **Kein echter Garagen-Grundriss**: Layout ist ein Platzhalter (2 Reihen à 12) aus `spots.grid_row`/`grid_col`. Echte Positionen einfach in der Tabelle setzen — kein Code nötig.
 - **`zahltag`**: Admin bekommt die Mail doppelt (`to` + `bcc`); `listUsers` ist auf 100 gecappt (ok bei ≤50 Usern). Beim nächsten Editieren der Function den Admin aus `bcc` dedupen.
 - **Zeitzone**: `current_date` in den RPCs ist UTC, User sind CET/CEST — 1–2 h Slack an den Tagesgrenzen von Buchen/Stornieren. Bei dieser Nutzung irrelevant.
-- **DB-Smoke-Test** (`scripts/db-smoke.sql`) deckt Buchung/Doppelbuchung/Storno ab, aber nicht: Halbtags-Betrag, `settle_ledger`, Storno-Fenster-Grenze, RLS-Deny-Pfade. Ergänzen, wenn die Datei ohnehin angefasst wird.
-- **Security-Advisor-Warnings**: `handle_new_user()` und `is_admin()` sind an `anon`/`authenticated` EXECUTE-granted (nicht exploitbar — Trigger-Funktion ist per PostgREST nicht aufrufbar, `is_admin` gibt für anon false zurück). Optional per Migration `revoke execute ... from public, anon, authenticated` stummschalten.
+- **Storno-Fenster bleibt tagesbasiert, auch bei Stundenbuchung**: `cancel_booking` prüft weiterhin `min(date) > current_date`, nicht die tatsächliche Uhrzeit. Eine heute (irgendwann) beginnende Buchung gilt schon als „begonnen" und kann ab Tagesbeginn nicht mehr storniert werden. Bei dieser Nutzung akzeptiert, bewusst nicht auf Stunden verfeinert.
+- **`join`-`list` gibt Platz-IDs an jeden mit gültigem Invite-Code**: der `{code, list:true}`-Aufruf braucht keine Session, nur den geheimen `invites.code`, und liefert die IDs der besitzerlosen aktiven Plätze fürs Registrierungs-Dropdown. Kein echtes Datenleck (nur IDs, keine Namen/Adressen) und für eine geschlossene WG mit demselben Code-Kreis wie die Registrierung selbst akzeptiert.
+- **DB-Smoke-Test** (`scripts/db-smoke.sql`) deckt jetzt Buchung/Doppelbuchung/Storno (inkl. Tagespauschalen-Betrag) und `claim_spot` (Erfolg, schon vergebener Platz, inaktiver Platz) ab, aber weiterhin nicht: `settle_ledger`, RLS-Deny-Pfade. Ergänzen, wenn die Datei ohnehin angefasst wird.
+- **Security-Advisor-Warnings**: `handle_new_user()` und `is_admin()` sind an `anon`/`authenticated` EXECUTE-granted (nicht exploitbar — Trigger-Funktion ist per PostgREST nicht aufrufbar, `is_admin` gibt für anon false zurück). Optional per Migration `revoke execute ... from public, anon, authenticated` stummschalten. `book_spot`/`cancel_booking`/`settle_ledger` **und neu `claim_spot`** werden vom Linter ebenfalls als „von `authenticated` ausführbare SECURITY DEFINER Function" gemeldet — das ist beabsichtigt (einziger Schreibweg per Design, siehe RPC-Abschnitt in `ARCHITECTURE.md`), keine neue Risikoklasse, kein Handlungsbedarf.
 - **User löschen** (Admin-Seite): geht nur für User **ohne** Buchungen/Ledger-Historie (FK-RESTRICT). Die `delete-user`-Function prüft das vorab und meldet es klar; Platz-Besitz wird beim Löschen automatisch gelöst.
 - **Registrierungs-50-User-Deckel ist nicht race-safe** (TOCTOU zwischen Count und Anlegen in `join`): bei gleichzeitigen Registrierungen könnte der Stand minimal über 50 rutschen. Bei einer WG bewusst als harmloser Overshoot akzeptiert; bei Bedarf per DB-Trigger hart machen.
 - **Einladungs-Link ist ein geteiltes Geheimnis**: wer ihn hat, kann sich registrieren (bis zum 50-Deckel). Bei Leak in der Admin-Seite „Neuen Link erzeugen". Registrierung prüft die E-Mail nicht auf Besitz (`email_confirm: true`) — bei einer geschlossenen WG akzeptiert.
 
 ## Fragen an den Auftraggeber
 
-- Tagessatz 5 € ist konfigurierbar (`settings`), kann sich laut Spec noch ändern — aktueller Wert ok?
 - Soll der „Zahltag"-Button bleiben, oder verschickt der Admin die eine Mail/Jahr lieber selbst aus dem Mailprogramm (spart die Resend-Domain-Verifizierung)?

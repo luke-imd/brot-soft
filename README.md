@@ -1,6 +1,6 @@
 # Garagen-Tool
 
-WG-Tool für 24 Garagenplätze: freigeben, buchen, Schulden-Ledger (5 €/Tag, 2,50 €/Halbtag).
+WG-Tool für 23 Garagenplätze: freigeben, buchen, Schulden-Ledger (stundengenau, 3 €-Tagespauschale).
 Spec: `docs/superpowers/specs/2026-07-23-garage-management-design.md`
 
 ## Stack
@@ -37,7 +37,8 @@ DB-Smoke-Test: `scripts/db-smoke.sql` im Supabase SQL Editor ausführen (rollt s
 - **User einladen:** "Einladungs-Link" kopieren und teilen. Wer den Link hat, registriert
   sich selbst (Name/E-Mail/Passwort) und ist sofort drin — keine E-Mail nötig, max. 50 User.
   Bei Verdacht auf Leak: "Neuen Link erzeugen" (alter wird ungültig).
-- **Platz zuordnen:** unter "Plätze zuweisen" pro Platz (1–24) den Besitzer wählen.
+- **Platz zuordnen:** unter "Plätze zuweisen" pro Platz (1–23, außer den inaktiven
+  Fahrrad-/Traktorplätzen 5/7/9/19) den Besitzer wählen.
 - **User verwalten:** zum Admin machen / Admin entziehen / löschen (Löschen geht nur, wenn der
   User keine Buchungen oder Schulden(-Historie) hat).
 - **Tagessatz ändern / Zahltag-Mail:** unter "Tagessatz & Zahltag".

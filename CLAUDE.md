@@ -25,12 +25,12 @@ Danach, in derselben Reihenfolge:
 
 ## Overview
 
-WG-Tool für **24 Garagenplätze** und **max. 50 User**. Platzbesitzer geben ihren Platz bei Abwesenheit halbtags frei, andere buchen ihn. Wer bucht, schuldet dem Besitzer 5 €/Tag (2,50 €/Halbtag) — ein Ledger hält fest, wer wem was schuldet, mit einseitigem „Beglichen"-Button (wir glauben dem Klicker, loggen aber wer/wann). Geschlossene Community: Der Admin lädt User ein und ordnet Plätze zu.
+WG-Tool für **23 Garagenplätze** und **max. 50 User**. Platzbesitzer geben ihren Platz bei Abwesenheit stundengenau frei, andere buchen ihn. Wer bucht, schuldet dem Besitzer **3 €/Tag Pauschale** (pro angefangenem Kalendertag, unabhängig von der gebuchten Stundenzahl) — ein Ledger hält fest, wer wem was schuldet, mit einseitigem „Beglichen"-Button (wir glauben dem Klicker, loggen aber wer/wann). Geschlossene Community: Der Admin lädt User ein und ordnet Plätze zu.
 
 ## Tech Stack
 
 - **Frontend**: React 19 + TypeScript + Tailwind v4, Vite-SPA, gehostet auf Vercel.
-- **Backend**: Supabase — Postgres (Auth, RLS, RPCs) + eine Edge Function (Deno). Kein eigener API-Server; das SPA spricht via `supabase-js` direkt mit Postgres.
+- **Backend**: Supabase — Postgres (Auth, RLS, RPCs) + drei Edge Functions (Deno). Kein eigener API-Server; das SPA spricht via `supabase-js` direkt mit Postgres.
 - **Auth**: E-Mail + Passwort (`signInWithPassword`). Kein offener Self-Signup in Supabase. Registrierung nur über den geheimen Einladungs-Link `?join=CODE` (Admin erzeugt/rotiert ihn auf der Admin-Seite; die `join`-Edge-Function legt den User mit `email_confirm:true` an → keine Bestätigungs-Mail). Passwort-Reset-Link öffnet ein „Passwort setzen"-Formular.
 - **Zugriffskontrolle**: Row Level Security. Alle authenticated User dürfen **lesen** (Transparenz gewollt); Schreiben nur über enge Policies bzw. `security definer`-RPCs.
 - **Tests**: Vitest (Slot-/Preis-Logik). DB-Smoke-Test als SQL (`scripts/db-smoke.sql`).
@@ -41,23 +41,23 @@ WG-Tool für **24 Garagenplätze** und **max. 50 User**. Platzbesitzer geben ihr
 ```
 src/
 ├── main.tsx                 # React entrypoint
-├── App.tsx                  # Auth-Gate + Join-Routing + Tab-Shell (Garage/Kalender/Ledger/Anleitung/Admin) + Passwort-Formular
+├── App.tsx                  # Auth-Gate + Join-Routing + Tab-Shell (Kalender/Garage/Meine Buchungen/Anleitung/Admin) + Passwort-Formular
 ├── Login.tsx                # E-Mail+Passwort-Login, "Passwort vergessen"
 ├── index.css                # @import "tailwindcss"
 ├── components/
-│   └── RangeForm.tsx        # Wiederverwendbares Datum-von-bis + Halbtag-Formular (Garage & Kalender)
+│   └── RangeForm.tsx        # Wiederverwendbares Datum+Stunde-von-bis-Formular mit Preisanzeige (Kalender)
 ├── lib/
 │   ├── supabase.ts          # Typisierter Supabase-Client
 │   ├── database.types.ts    # Aus dem DB-Schema generiert (mcp generate_typescript_types)
-│   ├── slots.ts             # Reine Logik: slotRange, priceCents, fmtEur, localDate, Half, Slot
+│   ├── slots.ts             # Reine Logik: hourRange, priceCents, hourSpans, fmtEur, localDate, Slot
 │   └── slots.test.ts        # Vitest-Tests dazu
 └── pages/
-    ├── Garage.tsx           # Vogelperspektive (2×12 Grid), buchen/freigeben/stornieren
-    ├── Calendar.tsx         # Monatsansicht, freie Plätze pro Tag, buchen
-    ├── Ledger.tsx           # Schulden-Liste, einseitiges Begleichen
+    ├── Calendar.tsx         # Startseite: Monatsansicht, Buchen/Freigeben/Zurückziehen/Platz eintragen (claim_spot)
+    ├── Garage.tsx           # Statischer Garagenplan (public/garagenplan.png) + Besitzer-Liste, keine Aktionen
+    ├── MyBookings.tsx       # (ex Ledger.tsx) Künftige Buchungen mit Storno + offene/beglichene Schulden
     ├── Help.tsx             # Statische Bedienungsanleitung für User (Tab "Anleitung")
     ├── Admin.tsx            # Admin-Seite: Plätze zuweisen, Einladungs-Link, User verwalten, Tagessatz/Zahltag
-    └── Join.tsx             # Selbstregistrierung über ?join=CODE-Link
+    └── Join.tsx             # Selbstregistrierung über ?join=CODE-Link (Sucher/Platz-Wahl)
 
 supabase/
 ├── migrations/              # Schema + RLS + RPCs (nur additiv, nie editieren)
@@ -84,9 +84,9 @@ DB-Migrationen und die Edge Function werden über den **Supabase-MCP** angewende
 
 ## Wichtige Hinweise
 
-- **Beträge immer in Cents** (int) speichern; Anzeige via `fmtEur`. Tagessatz global in `settings.day_rate_cents` (initial 500), Halbtag = halber Tagessatz.
-- **Halbtage**: `am` (00–12 Uhr) / `pm` (12–24 Uhr). Ein ganzer Tag = beide Slots.
-- **Datum** immer `YYYY-MM-DD` lokal (`localDate`), nie `toISOString()` für Anzeige. (UTC-Arithmetik nur intern in `slotRange` zur Datums-Iteration.)
-- **`free_slots` ist die Wahrheit**: eine Zeile pro freigegebenem Halbtag; `booking_id null` = frei, gesetzt = gebucht. Der Primärschlüssel `(spot_id, date, half)` macht Doppelbuchungen DB-seitig unmöglich.
-- **Geld-Logik lebt in der DB**, nicht im Frontend: `book_spot`/`cancel_booking`/`settle_ledger` sind `security definer`-RPCs; das Frontend ruft sie nur auf. Client- und Server-Preisformel müssen übereinstimmen (`Math.round(n*rate/2)` ↔ `round(count*rate/2.0)`).
+- **Beträge immer in Cents** (int) speichern; Anzeige via `fmtEur`. Tagessatz global in `settings.day_rate_cents` (aktuell 300 = 3 €), Preis = Anzahl **distinct Kalendertage** × Tagessatz (Tagespauschale, keine Halbierung — Stundenzahl pro Tag ist egal).
+- **Stunden**: `hour` 0–23, ein Slot deckt `[hour, hour+1)` ab (Ende exklusiv, `endHour = 24` = bis Mitternacht).
+- **Datum** immer `YYYY-MM-DD` lokal (`localDate`), nie `toISOString()` für Anzeige. (UTC-Arithmetik nur intern in `hourRange` zur Datums-Iteration.)
+- **`free_slots` ist die Wahrheit**: eine Zeile pro freigegebener Stunde; `booking_id null` = frei, gesetzt = gebucht. Der Primärschlüssel `(spot_id, date, hour)` macht Doppelbuchungen DB-seitig unmöglich.
+- **Geld-Logik lebt in der DB**, nicht im Frontend: `book_spot`/`cancel_booking`/`settle_ledger`/`claim_spot` sind `security definer`-RPCs; das Frontend ruft sie nur auf. Client- und Server-Preisformel müssen übereinstimmen (`new Set(slots.map(date)).size * rate` ↔ `count(distinct date) * rate`, keine Division mehr).
 - **UI-Sprache Deutsch, Code/Identifier Englisch.**

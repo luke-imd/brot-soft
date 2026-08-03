@@ -4,44 +4,46 @@ Fachliche Regeln der Garagen-Verwaltung. Referenz-Design: `docs/superpowers/spec
 
 ## Rollen
 
-- **User**: hat ein Profil (`profiles`, 1:1 zu Supabase-Auth), ggf. Besitzer von Parkplätzen. Sieht alles, bucht fremde Plätze, gibt eigene frei, begleicht Schulden.
+- **User**: hat ein Profil (`profiles`, 1:1 zu Supabase-Auth), ggf. Besitzer eines Parkplatzes. Sieht alles, bucht fremde Plätze, gibt eigene frei, begleicht Schulden.
 - **Admin** (`profiles.is_admin = true`): sieht zusätzlich den Tab **Admin** — Plätze zuweisen, Einladungs-Link verwalten, User verwalten (Admin-Rechte vergeben, löschen), Tagessatz ändern, Zahltag-Mail auslösen.
 
 Geschlossene Community: kein offener Self-Signup. Registrierung nur über den geheimen Einladungs-Link (`?join=CODE`), den der Admin auf der Admin-Seite erzeugt und teilt. Wer den Link hat, legt selbst Name/E-Mail/Passwort an und ist **sofort drin** (kein Bestätigungs-Mail). Login danach mit E-Mail + Passwort.
 
 ## Kern-Workflow
 
-1. **Freigeben** — Der Besitzer trägt einen Zeitraum ein („Platz X frei von–bis", halbtagsgenau). Jeder freigegebene Halbtag wird eine `free_slots`-Zeile mit `booking_id = null`.
-2. **Buchen** — Ein anderer User wählt einen freien Platz + Zeitraum und bucht. Erzeugt **atomar** eine `bookings`-Zeile, setzt `booking_id` auf den betroffenen `free_slots` und legt **sofort** einen `ledger`-Eintrag an (Schuldner = Bucher, Gläubiger = Besitzer).
-3. **Stornieren** — Vor Buchungsbeginn erlaubt: löscht die Buchung, gibt die Slots wieder frei (`free_slots.booking_id` → null) und löscht die Schuld. **Nicht** erlaubt, wenn die Buchung bereits begonnen hat ODER die Schuld schon als beglichen markiert wurde.
-4. **Begleichen** — Neben jedem offenen Ledger-Posten ein „Schulden beglichen"-Button. Einseitig: Schuldner **oder** Gläubiger darf klicken, wir glauben ohne Gegenbestätigung. Geloggt via `settled_at` + `settled_by`.
-5. **Zahltag** (Admin, ~1×/Jahr) — Button verschickt eine „Heute ist Zahltag"-Mail an alle User (via Resend Edge Function).
-6. **Registrieren** — Neuer Mitbewohner öffnet den Einladungs-Link, gibt Name/E-Mail/Passwort ein (`join`-Edge-Function, gated durch den geheimen Code + 50-User-Deckel) und kann die App sofort nutzen.
-7. **Verwalten** (Admin) — Plätze Besitzern zuordnen, Einladungs-Link rotieren, User zum Admin machen oder löschen.
+1. **Freigeben** — Der Besitzer trägt im Tab **Kalender** (Startseite) unter „Mein Platz" einen Zeitraum ein („Platz X frei von–bis", stundengenau, volle Stunden). Jede freigegebene Stunde wird eine `free_slots`-Zeile mit `booking_id = null`.
+2. **Buchen** — Im Kalender wählt ein anderer User an einem Tag mit freien Plätzen einen Platz + Zeitraum (Datum+Stunde von–bis) und bucht. Erzeugt **atomar** eine `bookings`-Zeile, setzt `booking_id` auf die betroffenen `free_slots`-Stunden und legt **sofort** einen `ledger`-Eintrag an (Schuldner = Bucher, Gläubiger = Besitzer), Betrag = Tagespauschale.
+3. **Platz eintragen** — Wer noch keinen Platz hat, kann im Kalender unter „Mein Platz" einen besitzerlosen **aktiven** Platz per `claim_spot`-RPC beanspruchen („Das ist mein Platz"); race-sicher, erster Klick gewinnt.
+4. **Stornieren** — Im Tab **Meine Buchungen**, vor Buchungsbeginn erlaubt: löscht die Buchung, gibt die Slots wieder frei (`free_slots.booking_id` → null) und löscht die Schuld. **Nicht** erlaubt, wenn die Buchung bereits begonnen hat ODER die Schuld schon als beglichen markiert wurde.
+5. **Begleichen** — Im Tab **Meine Buchungen**, neben jedem offenen Ledger-Posten ein „Schulden beglichen"-Button. Einseitig: Schuldner **oder** Gläubiger darf klicken, wir glauben ohne Gegenbestätigung. Geloggt via `settled_at` + `settled_by`.
+6. **Zahltag** (Admin, ~1×/Jahr) — Button verschickt eine „Heute ist Zahltag"-Mail an alle User (via Resend Edge Function).
+7. **Registrieren** — Neuer Mitbewohner öffnet den Einladungs-Link, gibt Name/E-Mail/Passwort ein, kreuzt optional „Ich suche einen Parkplatz" (`seeker`) und/oder „Ich habe einen Parkplatz" an (dann Auswahl aus den aktuell besitzerlosen aktiven Plätzen). Die `join`-Edge-Function legt den User an (gated durch den geheimen Code + 50-User-Deckel) und ordnet den gewünschten Platz bedingt zu — ist er inzwischen weg, wird der Account trotzdem angelegt und eine `warning` zurückgegeben. Danach kann die App sofort genutzt werden.
+8. **Verwalten** (Admin) — Plätze Besitzern zuordnen, Einladungs-Link rotieren, User zum Admin machen oder löschen.
 
 ## Business Rules (verbindlich)
 
-- **Preis**: Tagessatz `settings.day_rate_cents` (initial **500** = 5 €), ein Halbtag = halber Tagessatz. Schuld = `Anzahl gebuchte Halbtage × Tagessatz / 2`, in Cents, gerundet. Client (`priceCents`) und Server (`book_spot`) müssen identisch rechnen.
-- **Halbtage**: `am` (00–12) / `pm` (12–24). Ganzer Tag = beide Slots.
+- **Preis**: Tagessatz `settings.day_rate_cents` (aktuell **300** = 3 €), als **Tagespauschale**: Schuld = `Anzahl distinct gebuchter Kalendertage × Tagessatz`, in Cents. Die Stundenzahl pro Tag ist irrelevant — auch eine Buchung von 1 Stunde kostet die volle Tagespauschale für diesen Tag. Client (`priceCents`) und Server (`book_spot`) müssen identisch rechnen.
+- **Stunden**: `hour` 0–23, ein Slot deckt `[hour, hour+1)` ab (Ende exklusiv, `endHour = 24` heißt „bis Mitternacht"). Ein Zeitraum wird in volle Stunden-Slots zerlegt (`hourRange`).
 - **Buchbar** ist nur, was der Besitzer freigegeben hat und was noch nicht gebucht ist und in der Zukunft liegt (`free_slots.date >= current_date`).
 - **Eigenen Platz buchen** ist verboten (`book_spot` wirft „Eigenen Platz kann man nicht buchen").
-- **Platz ohne Besitzer** ist nicht buchbar (`book_spot` wirft „Platz hat keinen Besitzer"). Neu angelegte Plätze haben `owner_id = null`, bis der Admin sie zuordnet.
+- **Platz ohne Besitzer** ist nicht buchbar (`book_spot` wirft „Platz hat keinen Besitzer"). Neu angelegte Plätze haben `owner_id = null`, bis der Admin sie zuordnet oder ein User sie per `claim_spot` selbst beansprucht.
+- **Inaktive Plätze** (5, 7, 9, 19 — Fahrrad-/Traktor-Abstellplätze, `spots.active = false`) sind nie buchbar und können auch nicht per `claim_spot` beansprucht werden; `owner_id` bleibt bei ihnen dauerhaft `null`.
+- **`profiles.seeker`** ist rein informativ: zeigt in der Admin-User-Liste einen „sucht Platz"-Badge, hat keine Auswirkung auf Buchungs- oder Zuweisungslogik.
+- **`claim_spot`** ist race-sicher: das bedingte `UPDATE ... WHERE owner_id is null and active` trifft bei gleichzeitigen Versuchen nur einmal — die zweite Anfrage bekommt 0 Treffer und eine Exception.
 - **Ledger entsteht bei Buchung, automatisch** — nicht am Ende des Zeitraums.
-- **Doppelbuchung ist DB-seitig unmöglich**: der PK `(spot_id, date, half)` auf `free_slots` + das bedingte `UPDATE ... WHERE booking_id is null` machen konkurrierende Buchungen race-sicher (die zweite trifft 0 Zeilen und die ganze Transaktion rollt zurück).
-- **Storno-Fenster**: nur bis zum Vortag des Buchungsbeginns (`min(date) > current_date`).
+- **Doppelbuchung ist DB-seitig unmöglich**: der PK `(spot_id, date, hour)` auf `free_slots` + das bedingte `UPDATE ... WHERE booking_id is null` machen konkurrierende Buchungen race-sicher (die zweite trifft 0 Zeilen und die ganze Transaktion rollt zurück).
+- **Storno-Fenster**: nur bis zum Vortag des Buchungsbeginns (`min(date) > current_date`) — bleibt tagesbasiert, auch bei stundengenauer Buchung (siehe `OPEN_QUESTIONS.md`).
 - **Beglichene Schuld ist geschützt**: eine bereits `settled`-Schuld kann nicht mehr wegstorniert werden (Buchhaltung bleibt erhalten) — siehe Migration `...0004`.
 - **Transparenz gewollt**: jeder eingeloggte User darf den kompletten Ledger und alle Buchungen lesen. RLS beschränkt deshalb nur das Schreiben.
 
-## Farb-/Status-Logik (Garage-View, pro gewähltem Tag+Halbtag)
+## Kalender- und Garage-Anzeige
 
-- **grau** — kein `free_slots`-Eintrag: der Besitzer nutzt den Platz selbst (bzw. Platz noch keinem Besitzer zugeordnet).
-- **grün** — `free_slots`-Eintrag mit `booking_id = null`: frei, buchbar.
-- **blau** — von mir gebucht.
-- **orange** — von jemand anderem gebucht.
+- **Kalender** (Startseite): Monatsansicht. Jeder Tag mit mindestens einem freien Platz zeigt ein „n frei"-Badge. Tag anklicken öffnet die Liste der an diesem Tag freien Plätze; pro Platz werden die freien Stunden zu zusammenhängenden Bereichen gemergt und angezeigt (z. B. „8–12 Uhr, 14–18 Uhr" oder „ganztags").
+- **Garage**: rein statische Orientierungsseite — Plan-Bild (`public/garagenplan.png`) von Objekt 2 plus Liste „wem gehört welcher Platz" (inkl. Fahrrad-/Traktor-Label für die inaktiven Plätze). Keine Buchungs- oder Freigabe-Aktionen — die passieren im Kalender.
 
 ## Bewusste Auslassungen (YAGNI)
 
 - Keine Gegenbestätigung beim Begleichen.
 - Keine automatischen/wiederkehrenden E-Mails, kein Cron — Zahltag ist ein manueller Admin-Klick.
 - Keine Bezahl-Integration — der Ledger bildet nur ab, gezahlt wird privat.
-- Kein UI-Editor fürs Garagen-Layout — Platz-Positionen sind Daten (`spots.grid_row`/`grid_col`).
+- Kein UI-Editor fürs Garagen-Layout — der Plan ist ein statisches Bild (`public/garagenplan.png`), keine Positionsdaten mehr in der DB.
