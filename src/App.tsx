@@ -4,12 +4,12 @@ import { supabase } from './lib/supabase'
 import Login from './Login'
 import Garage from './pages/Garage'
 import Calendar from './pages/Calendar'
-import Ledger from './pages/Ledger'
+import MyBookings from './pages/MyBookings'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import Join from './pages/Join'
 
-const TABS = { garage: 'Garage', kalender: 'Kalender', ledger: 'Ledger', anleitung: 'Anleitung', admin: 'Admin' } as const
+const TABS = { kalender: 'Kalender', garage: 'Garage', buchungen: 'Meine Buchungen', anleitung: 'Anleitung', admin: 'Admin' } as const
 type Tab = keyof typeof TABS
 
 function PasswordModal({ recovery, onClose }: { recovery: boolean; onClose: () => void }) {
@@ -89,7 +89,7 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [userName, setUserName] = useState('')
-  const [tab, setTab] = useState<Tab>('garage')
+  const [tab, setTab] = useState<Tab>('kalender')
   const [showPw, setShowPw] = useState(fromAuthLink)
   // "recovery" nur für die automatisch geöffnete Instanz; danach ist es ein normales "Passwort ändern"
   const [recovery, setRecovery] = useState(fromAuthLink)
@@ -171,9 +171,9 @@ export default function App() {
       )}
       <main className="mx-auto max-w-6xl p-4 sm:p-6">
         <div key={tab} className="fade-in">
-          {tab === 'garage' && <Garage userId={userId} />}
           {tab === 'kalender' && <Calendar userId={userId} />}
-          {tab === 'ledger' && <Ledger userId={userId} />}
+          {tab === 'garage' && <Garage userId={userId} />}
+          {tab === 'buchungen' && <MyBookings userId={userId} />}
           {tab === 'anleitung' && <Help />}
           {tab === 'admin' && isAdmin && <Admin userId={userId} />}
         </div>
