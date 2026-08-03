@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtEur } from '../lib/slots'
 
-type Profile = { id: string; name: string; is_admin: boolean }
-type Spot = { id: number; owner_id: string | null }
+type Profile = { id: string; name: string; is_admin: boolean; seeker: boolean }
+type Spot = { id: number; owner_id: string | null; active: boolean }
 
 export default function Admin({ userId }: { userId: string }) {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -14,8 +14,8 @@ export default function Admin({ userId }: { userId: string }) {
 
   const load = useCallback(async () => {
     const [p, s, st, inv] = await Promise.all([
-      supabase.from('profiles').select('id, name, is_admin').order('name'),
-      supabase.from('spots').select('id, owner_id').order('id'),
+      supabase.from('profiles').select('id, name, is_admin, seeker').order('name'),
+      supabase.from('spots').select('id, owner_id, active').order('id'),
       supabase.from('settings').select('day_rate_cents').single(),
       supabase.from('invites').select('code').single(),
     ])
@@ -81,7 +81,7 @@ export default function Admin({ userId }: { userId: string }) {
       <section className="card">
         <h2 className="mb-3 text-lg font-bold tracking-tight">Plätze zuweisen</h2>
         <div className="grid gap-2 sm:grid-cols-2">
-          {spots.map(spot => (
+          {spots.filter(s => s.active).map(spot => (
             <div key={spot.id} className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-sm font-medium">Platz {spot.id}</span>
               <select
@@ -123,6 +123,7 @@ export default function Admin({ userId }: { userId: string }) {
               <span className="flex-1 font-medium">
                 {p.name}
                 {p.is_admin && <span className="ml-2 rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-semibold">Admin</span>}
+                {p.seeker && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">sucht Platz</span>}
                 {p.id === userId && <span className="ml-2 text-xs text-zinc-400">(du)</span>}
               </span>
               {p.id !== userId && (
