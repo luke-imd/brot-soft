@@ -23,7 +23,7 @@ export default function Admin({ userId }: { userId: string }) {
     if (err) { setMsg(`Fehler beim Laden: ${err.message}`); return }
     setProfiles(p.data ?? [])
     setSpots(s.data ?? [])
-    setRate(String((st.data?.day_rate_cents ?? 500) / 100))
+    setRate(String((st.data?.day_rate_cents ?? 300) / 100))
     setCode(inv.data?.code ?? '')
   }, [])
 

@@ -1,7 +1,8 @@
 # Garagen-Tool
 
 WG-Tool für 23 Garagenplätze: freigeben, buchen, Schulden-Ledger (stundengenau, 3 €-Tagespauschale).
-Spec: `docs/superpowers/specs/2026-07-23-garage-management-design.md`
+Spec: `docs/superpowers/specs/2026-08-03-hourly-booking-redesign-design.md`
+(historisch: `docs/superpowers/specs/2026-07-23-garage-management-design.md`)
 
 ## Stack
 

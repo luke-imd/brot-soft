@@ -18,6 +18,7 @@ export default function Calendar({ userId }: { userId: string }) {
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [claimId, setClaimId] = useState('')
   const [msg, setMsg] = useState('')
+  const [errMsg, setErrMsg] = useState('')
   const [loadError, setLoadError] = useState('')
 
   const first = `${year}-${pad(month + 1)}-01`
@@ -51,10 +52,11 @@ export default function Calendar({ userId }: { userId: string }) {
     setSelectedDay(null)
   }
 
-  // Tag -> Map<spot_id, freie Stunden>
+  // Tag -> Map<spot_id, freie Stunden> (eigene Plätze ausgeblendet — die landen in "Mein Platz")
   function spotsOn(date: string) {
     const m = new Map<number, number[]>()
     for (const f of free.filter(x => x.date === date)) {
+      if (spots.find(s => s.id === f.spot_id)?.owner_id === userId) continue
       m.set(f.spot_id, [...(m.get(f.spot_id) ?? []), f.hour])
     }
     return m
@@ -85,13 +87,18 @@ export default function Calendar({ userId }: { userId: string }) {
         .eq('spot_id', spotId).eq('date', date).is('booking_id', null).in('hour', hours)
       if (error) throw new Error(error.message)
     }
-    setMsg('Freigabe zurückgezogen')
+    setMsg('Freigabe zurückgezogen (bereits gebuchte Stunden bleiben bestehen)')
     await load()
   }
 
   async function claim() {
     const { error } = await supabase.rpc('claim_spot', { p_spot_id: Number(claimId) })
-    setMsg(error ? error.message : `Platz ${claimId} gehört jetzt dir ✓`)
+    if (error) {
+      setErrMsg(error.message)
+    } else {
+      setErrMsg('')
+      setMsg(`Platz ${claimId} gehört jetzt dir ✓`)
+    }
     await load()
   }
 
@@ -105,6 +112,7 @@ export default function Calendar({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       {loadError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>}
+      {errMsg && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{errMsg}</p>}
       {msg && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{msg}</p>}
 
       <div className="flex items-center gap-3">
@@ -155,7 +163,6 @@ export default function Calendar({ userId }: { userId: string }) {
           </h3>
           {daySpots.size === 0 && <p className="text-zinc-500">Keine freien Plätze an diesem Tag.</p>}
           {[...daySpots.entries()].sort(([a], [b]) => a - b)
-            .filter(([spotId]) => spots.find(s => s.id === spotId)?.owner_id !== userId)
             .map(([spotId, hours]) => (
               <details key={spotId} className="rounded-xl border border-zinc-200 p-3 transition-colors open:bg-zinc-50">
                 <summary className="cursor-pointer select-none text-sm font-medium">

@@ -6,6 +6,7 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000002', 'borrower@test.local');
 
 update public.spots set owner_id = '00000000-0000-0000-0000-000000000001' where id = 1;
+update public.spots set owner_id = null where id = 2;
 insert into public.free_slots (spot_id, date, hour) values
   (1, current_date + 1, 10),
   (1, current_date + 1, 11),

@@ -78,20 +78,26 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: msg })
     }
 
+    const warnings: string[] = []
+
     if (seeker) {
-      await admin.from('profiles').update({ seeker: true }).eq('id', data.user.id)
+      const { error: seekerError } = await admin.from('profiles').update({ seeker: true }).eq('id', data.user.id)
+      if (seekerError) {
+        console.error('join: seeker update failed:', seekerError)
+        warnings.push('Sucher-Markierung konnte nicht gespeichert werden — bitte beim Admin melden.')
+      }
     }
 
-    let warning: string | undefined
     if (spotId !== null) {
       // bedingtes UPDATE = race-sicher; 0 Zeilen -> Platz war inzwischen weg
       const { data: claimed } = await admin.from('spots').update({ owner_id: data.user.id })
         .eq('id', spotId).is('owner_id', null).eq('active', true).select('id')
       if (!claimed?.length) {
-        warning = 'Dein Wunsch-Platz wurde inzwischen vergeben — du kannst ihn später im Kalender neu wählen oder den Admin fragen.'
+        warnings.push('Dein Wunsch-Platz wurde inzwischen vergeben — du kannst ihn später im Kalender neu wählen oder den Admin fragen.')
       }
     }
-    return json({ ok: true, warning })
+
+    return json({ ok: true, warning: warnings.length ? warnings.join(' ') : undefined })
   } catch (err) {
     console.error('join error:', err)
     return json({ ok: false, error: 'Serverfehler. Bitte später erneut versuchen.' }, 500)

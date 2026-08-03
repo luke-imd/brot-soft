@@ -22,7 +22,7 @@ FK-Verhalten trägt die Storno-Semantik: beim Löschen einer Buchung werden ihre
 
 ## RLS-Policies
 
-Quelle: `supabase/migrations/20260723000002_rls_rpc.sql`. RLS auf allen 6 Tabellen aktiv, durch die Stunden-Migration unverändert.
+Quelle: `supabase/migrations/20260723000002_rls_rpc.sql`. RLS auf allen 7 Tabellen aktiv (`invites` inklusive), durch die Stunden-Migration unverändert.
 
 - **`read_all`** (SELECT, alle Tabellen, `authenticated`): jeder eingeloggte User liest alles (Transparenz).
 - **`owner_frees`** (INSERT auf `free_slots`): nur wenn `booking_id is null` **und** der Platz dem User gehört → Besitzer gibt eigene Plätze frei.
