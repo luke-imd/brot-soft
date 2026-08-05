@@ -65,41 +65,39 @@ export default function Garage({ userId }: { userId: string }) {
         </p>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[640px] rounded-[26px] bg-gradient-to-b from-zinc-800 to-zinc-900 px-5 pb-4 pt-5 shadow-[inset_0_2px_22px_rgba(0,0,0,0.45)]">
-          <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-zinc-400">
-            Objekt 2 · Ebene 0
-          </div>
-          <div className="mt-4 grid grid-cols-6 gap-1.5">
-            {spots.map(spot => {
-              const pos = SPOT_POS[spot.id]
-              if (!pos) return null
-              const own = spot.owner_id === userId
-              return (
-                <div key={spot.id} title={`Platz ${spot.id}`}
-                  style={{ gridColumn: pos.col, gridRow: pos.row }}
-                  className={`flex aspect-[2/2.5] min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-[10px]
-                    ${!spot.active
-                      ? 'border-[1.5px] border-dashed border-white/20 bg-white/5 text-zinc-500'
-                      : own
-                        ? 'border border-white/15 bg-blue-500 text-white'
-                        : spot.owner_id
-                          ? 'border border-white/15 bg-white/10 text-white'
-                          : 'border-[1.5px] border-dashed border-white/25 bg-white/5 text-zinc-400'}`}>
-                  <span className="text-base font-extrabold leading-none">{spot.id}</span>
-                  <span className="text-[8.5px] font-extrabold tracking-wider opacity-80">
-                    {!spot.active ? INACTIVE_ICON[spot.id] : initials(spot.owner_id)}
-                  </span>
-                </div>
-              )
-            })}
-            {ENTRANCES.map(e => (
-              <div key={e.label} style={{ gridColumn: e.col, gridRow: 6 }}
-                className="pt-2 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-                ↓ {e.label}
+      <div className="max-w-xl rounded-2xl bg-gradient-to-b from-zinc-800 to-zinc-900 p-3 shadow-[inset_0_2px_22px_rgba(0,0,0,0.45)]">
+        <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-zinc-400">
+          Objekt 2 · Ebene 0
+        </div>
+        <div className="mt-2 grid grid-cols-6 gap-1">
+          {spots.map(spot => {
+            const pos = SPOT_POS[spot.id]
+            if (!pos) return null
+            const own = spot.owner_id === userId
+            return (
+              <div key={spot.id} title={`Platz ${spot.id}`}
+                style={{ gridColumn: pos.col, gridRow: pos.row }}
+                className={`flex h-8 items-center justify-center gap-1 rounded-md text-[11px]
+                  ${!spot.active
+                    ? 'border border-dashed border-white/20 bg-white/5 text-zinc-500'
+                    : own
+                      ? 'border border-white/15 bg-blue-500 text-white'
+                      : spot.owner_id
+                        ? 'border border-white/15 bg-white/10 text-white'
+                        : 'border border-dashed border-white/25 bg-white/5 text-zinc-400'}`}>
+                <span className="font-extrabold leading-none">{spot.id}</span>
+                <span className="text-[8px] font-bold tracking-wide opacity-75">
+                  {!spot.active ? INACTIVE_ICON[spot.id] : initials(spot.owner_id)}
+                </span>
               </div>
-            ))}
-          </div>
+            )
+          })}
+          {ENTRANCES.map(e => (
+            <div key={e.label} style={{ gridColumn: e.col, gridRow: 6 }}
+              className="pt-1 text-center text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-500">
+              ↓ {e.label}
+            </div>
+          ))}
         </div>
       </div>
 
