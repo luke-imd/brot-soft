@@ -57,7 +57,7 @@ src/
     ├── MyBookings.tsx       # (ex Ledger.tsx) Künftige Buchungen mit Storno + offene/beglichene Schulden
     ├── Help.tsx             # Statische Bedienungsanleitung für User (Tab "Anleitung")
     ├── Admin.tsx            # Admin-Seite: Plätze zuweisen, Einladungs-Link, User verwalten, Tagessatz/Zahltag
-    └── Join.tsx             # Selbstregistrierung über ?join=CODE-Link (Sucher/Platz-Wahl)
+    └── Join.tsx             # Selbstregistrierung über ?join=CODE-Link (optionale Platz-Wahl)
 
 supabase/
 ├── migrations/              # Schema + RLS + RPCs (nur additiv, nie editieren)

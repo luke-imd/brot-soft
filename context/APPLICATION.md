@@ -17,7 +17,7 @@ Geschlossene Community: kein offener Self-Signup. Registrierung nur über den ge
 4. **Stornieren** — Im Tab **Meine Buchungen**, vor Buchungsbeginn erlaubt: löscht die Buchung, gibt die Slots wieder frei (`free_slots.booking_id` → null) und löscht die Schuld. **Nicht** erlaubt, wenn die Buchung bereits begonnen hat ODER die Schuld schon als beglichen markiert wurde.
 5. **Begleichen** — Im Tab **Meine Buchungen**, neben jedem offenen Ledger-Posten ein „Schulden beglichen"-Button. Einseitig: Schuldner **oder** Gläubiger darf klicken, wir glauben ohne Gegenbestätigung. Geloggt via `settled_at` + `settled_by`.
 6. **Zahltag** (Admin, ~1×/Jahr) — Button verschickt eine „Heute ist Zahltag"-Mail an alle User (via Resend Edge Function).
-7. **Registrieren** — Neuer Mitbewohner öffnet den Einladungs-Link, gibt Name/E-Mail/Passwort ein, kreuzt optional „Ich suche einen Parkplatz" (`seeker`) und/oder „Ich habe einen Parkplatz" an (dann Auswahl aus den aktuell besitzerlosen aktiven Plätzen). Die `join`-Edge-Function legt den User an (gated durch den geheimen Code + 50-User-Deckel) und ordnet den gewünschten Platz bedingt zu — ist er inzwischen weg, wird der Account trotzdem angelegt und eine `warning` zurückgegeben. Danach kann die App sofort genutzt werden.
+7. **Registrieren** — Neuer Mitbewohner öffnet den Einladungs-Link, gibt Name/E-Mail/Passwort ein und kreuzt — nur solange es besitzerlose aktive Plätze gibt — optional „Ich habe einen Parkplatz" an (dann Auswahl aus diesen Plätzen; sind alle vergeben, erscheint die Option gar nicht). Die `join`-Edge-Function legt den User an (gated durch den geheimen Code + 50-User-Deckel) und ordnet den gewünschten Platz bedingt zu — ist er inzwischen weg, wird der Account trotzdem angelegt und eine `warning` zurückgegeben. Danach kann die App sofort genutzt werden.
 8. **Verwalten** (Admin) — Plätze Besitzern zuordnen, Einladungs-Link rotieren, User zum Admin machen oder löschen.
 
 ## Business Rules (verbindlich)
@@ -28,7 +28,7 @@ Geschlossene Community: kein offener Self-Signup. Registrierung nur über den ge
 - **Eigenen Platz buchen** ist verboten (`book_spot` wirft „Eigenen Platz kann man nicht buchen").
 - **Platz ohne Besitzer** ist nicht buchbar (`book_spot` wirft „Platz hat keinen Besitzer"). Neu angelegte Plätze haben `owner_id = null`, bis der Admin sie zuordnet oder ein User sie per `claim_spot` selbst beansprucht.
 - **Inaktive Plätze** (5, 7, 9, 19 — Fahrrad-/Traktor-Abstellplätze, `spots.active = false`) sind nie buchbar und können auch nicht per `claim_spot` beansprucht werden; `owner_id` bleibt bei ihnen dauerhaft `null`.
-- **`profiles.seeker`** ist rein informativ: zeigt in der Admin-User-Liste einen „sucht Platz"-Badge, hat keine Auswirkung auf Buchungs- oder Zuweisungslogik.
+- **`profiles.seeker`** ist rein informativ (Admin-Badge „sucht Platz") und wird von der Join-Seite nicht mehr gesetzt — die Spalte und der Badge bestehen nur noch für Altdaten; die `join`-Function akzeptiert das Feld weiterhin.
 - **`claim_spot`** ist race-sicher: das bedingte `UPDATE ... WHERE owner_id is null and active` trifft bei gleichzeitigen Versuchen nur einmal — die zweite Anfrage bekommt 0 Treffer und eine Exception.
 - **Ledger entsteht bei Buchung, automatisch** — nicht am Ende des Zeitraums.
 - **Doppelbuchung ist DB-seitig unmöglich**: der PK `(spot_id, date, hour)` auf `free_slots` + das bedingte `UPDATE ... WHERE booking_id is null` machen konkurrierende Buchungen race-sicher (die zweite trifft 0 Zeilen und die ganze Transaktion rollt zurück).
