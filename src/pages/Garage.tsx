@@ -11,18 +11,19 @@ const INACTIVE_ICON: Record<number, string> = { 5: '🚲', 7: '🚲', 9: '🚜',
 // Positionen abgeleitet aus dem Garagenplan (Objekt 2, 19.12.2009), so gedreht,
 // dass die Einfahrten unten liegen: links Block 4–1, Mitte 6/8 über 5/7,
 // rechts drei Fünfer-Reihen 13–9, 18–14, 23–19.
+// Spalten 2, 5 und 8 sind Fahrgassen (Einfahrten) — dort fahren die Autos durch.
 const SPOT_POS: Record<number, { col: number; row: number }> = {
   4: { col: 1, row: 1 }, 3: { col: 1, row: 2 }, 2: { col: 1, row: 3 }, 1: { col: 1, row: 4 },
-  6: { col: 2, row: 1 }, 8: { col: 3, row: 1 }, 5: { col: 2, row: 2 }, 7: { col: 3, row: 2 },
-  13: { col: 4, row: 1 }, 12: { col: 4, row: 2 }, 11: { col: 4, row: 3 }, 10: { col: 4, row: 4 }, 9: { col: 4, row: 5 },
-  18: { col: 5, row: 1 }, 17: { col: 5, row: 2 }, 16: { col: 5, row: 3 }, 15: { col: 5, row: 4 }, 14: { col: 5, row: 5 },
-  23: { col: 6, row: 1 }, 22: { col: 6, row: 2 }, 21: { col: 6, row: 3 }, 20: { col: 6, row: 4 }, 19: { col: 6, row: 5 },
+  6: { col: 3, row: 1 }, 8: { col: 4, row: 1 }, 5: { col: 3, row: 2 }, 7: { col: 4, row: 2 },
+  13: { col: 6, row: 1 }, 12: { col: 6, row: 2 }, 11: { col: 6, row: 3 }, 10: { col: 6, row: 4 }, 9: { col: 6, row: 5 },
+  18: { col: 7, row: 1 }, 17: { col: 7, row: 2 }, 16: { col: 7, row: 3 }, 15: { col: 7, row: 4 }, 14: { col: 7, row: 5 },
+  23: { col: 9, row: 1 }, 22: { col: 9, row: 2 }, 21: { col: 9, row: 3 }, 20: { col: 9, row: 4 }, 19: { col: 9, row: 5 },
 }
 
-const ENTRANCES: { label: string; col: string }[] = [
-  { label: 'Einfahrt 1', col: '1' },
-  { label: 'Einfahrt 2', col: '2 / span 2' },
-  { label: 'Einfahrt 3', col: '6' },
+const LANES: { label: string; col: number }[] = [
+  { label: 'Einfahrt 1', col: 2 },
+  { label: 'Einfahrt 2', col: 5 },
+  { label: 'Einfahrt 3', col: 8 },
 ]
 
 export default function Garage({ userId }: { userId: string }) {
@@ -69,7 +70,7 @@ export default function Garage({ userId }: { userId: string }) {
         <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-zinc-400">
           Objekt 2 · Ebene 0
         </div>
-        <div className="mt-2 grid grid-cols-6 gap-1">
+        <div className="mt-2 grid grid-cols-[1fr_0.6fr_1fr_1fr_0.6fr_1fr_1fr_0.6fr_1fr] gap-1">
           {spots.map(spot => {
             const pos = SPOT_POS[spot.id]
             if (!pos) return null
@@ -92,10 +93,14 @@ export default function Garage({ userId }: { userId: string }) {
               </div>
             )
           })}
-          {ENTRANCES.map(e => (
-            <div key={e.label} style={{ gridColumn: e.col, gridRow: 6 }}
-              className="pt-1 text-center text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-500">
-              ↓ {e.label}
+          {LANES.map(l => (
+            <div key={l.label} className="contents">
+              <div style={{ gridColumn: l.col, gridRow: '1 / span 5' }}
+                className="mx-auto w-0 border-l-2 border-dashed border-white/15" />
+              <div style={{ gridColumn: l.col, gridRow: 6 }}
+                className="flex justify-center pt-1 text-center text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-500">
+                <span className="whitespace-nowrap">↓ {l.label}</span>
+              </div>
             </div>
           ))}
         </div>
