@@ -39,11 +39,11 @@ Geschlossene Community: kein offener Self-Signup. Registrierung nur über den ge
 ## Kalender- und Garage-Anzeige
 
 - **Kalender** (Startseite): Monatsansicht. Jeder Tag mit mindestens einem freien Platz zeigt ein „n frei"-Badge. Tag anklicken öffnet die Liste der an diesem Tag freien Plätze; pro Platz werden die freien Stunden zu zusammenhängenden Bereichen gemergt und angezeigt (z. B. „8–12 Uhr, 14–18 Uhr" oder „ganztags").
-- **Garage**: rein statische Orientierungsseite — Plan-Bild (`public/garagenplan.png`) von Objekt 2 plus Liste „wem gehört welcher Platz" (inkl. Fahrrad-/Traktor-Label für die inaktiven Plätze). Keine Buchungs- oder Freigabe-Aktionen — die passieren im Kalender.
+- **Garage**: rein statische Orientierungsseite — in CSS nachgebauter Grundriss von Objekt 2 (Kacheln nach dem echten Plan positioniert, Einfahrten unten, Besitzer-Initialen bzw. 🚲/🚜 für inaktive Plätze) plus Liste „wem gehört welcher Platz". Keine Buchungs- oder Freigabe-Aktionen — die passieren im Kalender.
 
 ## Bewusste Auslassungen (YAGNI)
 
 - Keine Gegenbestätigung beim Begleichen.
 - Keine automatischen/wiederkehrenden E-Mails, kein Cron — Zahltag ist ein manueller Admin-Klick.
 - Keine Bezahl-Integration — der Ledger bildet nur ab, gezahlt wird privat.
-- Kein UI-Editor fürs Garagen-Layout — der Plan ist ein statisches Bild (`public/garagenplan.png`), keine Positionsdaten mehr in der DB.
+- Kein UI-Editor fürs Garagen-Layout — die Plan-Positionen sind eine statische Konstante (`SPOT_POS` in `Garage.tsx`), keine Positionsdaten mehr in der DB.

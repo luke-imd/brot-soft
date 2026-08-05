@@ -3,9 +3,27 @@ import { supabase } from '../lib/supabase'
 
 type SpotRow = { id: number; owner_id: string | null; active: boolean }
 
-// ponytail: reine Orientierungs-Seite — Plan-Bild + Besitzer-Liste, keine Aktionen.
-// Gebucht/gebucht-werden passiert im Kalender.
+// ponytail: reine Orientierungs-Seite — CSS-Plan nach dem echten Grundriss + Besitzer-Liste,
+// keine Aktionen. Gebucht/gebucht-werden passiert im Kalender.
 const INACTIVE_LABEL: Record<number, string> = { 5: 'Fahrrad', 7: 'Fahrrad', 9: 'Traktor', 19: 'Fahrrad' }
+const INACTIVE_ICON: Record<number, string> = { 5: '🚲', 7: '🚲', 9: '🚜', 19: '🚲' }
+
+// Positionen abgeleitet aus dem Garagenplan (Objekt 2, 19.12.2009), so gedreht,
+// dass die Einfahrten unten liegen: links Block 4–1, Mitte 6/8 über 5/7,
+// rechts drei Fünfer-Reihen 13–9, 18–14, 23–19.
+const SPOT_POS: Record<number, { col: number; row: number }> = {
+  4: { col: 1, row: 1 }, 3: { col: 1, row: 2 }, 2: { col: 1, row: 3 }, 1: { col: 1, row: 4 },
+  6: { col: 2, row: 1 }, 8: { col: 3, row: 1 }, 5: { col: 2, row: 2 }, 7: { col: 3, row: 2 },
+  13: { col: 4, row: 1 }, 12: { col: 4, row: 2 }, 11: { col: 4, row: 3 }, 10: { col: 4, row: 4 }, 9: { col: 4, row: 5 },
+  18: { col: 5, row: 1 }, 17: { col: 5, row: 2 }, 16: { col: 5, row: 3 }, 15: { col: 5, row: 4 }, 14: { col: 5, row: 5 },
+  23: { col: 6, row: 1 }, 22: { col: 6, row: 2 }, 21: { col: 6, row: 3 }, 20: { col: 6, row: 4 }, 19: { col: 6, row: 5 },
+}
+
+const ENTRANCES: { label: string; col: string }[] = [
+  { label: 'Einfahrt 1', col: '1' },
+  { label: 'Einfahrt 2', col: '2 / span 2' },
+  { label: 'Einfahrt 3', col: '6' },
+]
 
 export default function Garage({ userId }: { userId: string }) {
   const [spots, setSpots] = useState<SpotRow[]>([])
@@ -27,6 +45,15 @@ export default function Garage({ userId }: { userId: string }) {
     })
   }, [])
 
+  function initials(ownerId: string | null) {
+    if (!ownerId) return '—'
+    if (ownerId === userId) return 'ICH'
+    const name = names.get(ownerId)
+    if (!name) return '?'
+    const words = name.trim().split(/\s+/)
+    return (words.length > 1 ? words[0][0] + words[1][0] : name.slice(0, 2)).toUpperCase()
+  }
+
   return (
     <div className="space-y-5">
       {loadError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>}
@@ -38,9 +65,49 @@ export default function Garage({ userId }: { userId: string }) {
         </p>
       </div>
 
-      <div className="card overflow-x-auto p-3">
-        <img src="/garagenplan.png" alt="Garagenplan Objekt 2 mit den Platznummern 1–23"
-          className="min-w-[700px] max-w-none sm:min-w-0 sm:max-w-full" />
+      <div className="overflow-x-auto">
+        <div className="min-w-[640px] rounded-[26px] bg-gradient-to-b from-zinc-800 to-zinc-900 px-5 pb-4 pt-5 shadow-[inset_0_2px_22px_rgba(0,0,0,0.45)]">
+          <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-zinc-400">
+            Objekt 2 · Ebene 0
+          </div>
+          <div className="mt-4 grid grid-cols-6 gap-1.5">
+            {spots.map(spot => {
+              const pos = SPOT_POS[spot.id]
+              if (!pos) return null
+              const own = spot.owner_id === userId
+              return (
+                <div key={spot.id} title={`Platz ${spot.id}`}
+                  style={{ gridColumn: pos.col, gridRow: pos.row }}
+                  className={`flex aspect-[2/2.5] min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-[10px]
+                    ${!spot.active
+                      ? 'border-[1.5px] border-dashed border-white/20 bg-white/5 text-zinc-500'
+                      : own
+                        ? 'border border-white/15 bg-blue-500 text-white'
+                        : spot.owner_id
+                          ? 'border border-white/15 bg-white/10 text-white'
+                          : 'border-[1.5px] border-dashed border-white/25 bg-white/5 text-zinc-400'}`}>
+                  <span className="text-base font-extrabold leading-none">{spot.id}</span>
+                  <span className="text-[8.5px] font-extrabold tracking-wider opacity-80">
+                    {!spot.active ? INACTIVE_ICON[spot.id] : initials(spot.owner_id)}
+                  </span>
+                </div>
+              )
+            })}
+            {ENTRANCES.map(e => (
+              <div key={e.label} style={{ gridColumn: e.col, gridRow: 6 }}
+                className="pt-2 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                ↓ {e.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12.5px] font-semibold text-zinc-600">
+        <span className="inline-flex items-center gap-1.5"><span className="h-[11px] w-[11px] rounded-[4px] bg-blue-500" />Dein Platz</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-[11px] w-[11px] rounded-[4px] bg-zinc-400" />Vergeben</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-[11px] w-[11px] rounded-[4px] border-[1.5px] border-dashed border-zinc-400" />Ohne Besitzer</span>
+        <span className="inline-flex items-center gap-1.5">🚲/🚜 Nicht buchbar</span>
       </div>
 
       <div className="card">

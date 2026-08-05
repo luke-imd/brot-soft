@@ -53,7 +53,7 @@ src/
 │   └── slots.test.ts        # Vitest-Tests dazu
 └── pages/
     ├── Calendar.tsx         # Startseite: Monatsansicht, Buchen/Freigeben/Zurückziehen/Platz eintragen (claim_spot)
-    ├── Garage.tsx           # Statischer Garagenplan (public/garagenplan.png) + Besitzer-Liste, keine Aktionen
+    ├── Garage.tsx           # Garagenplan als CSS-Grundriss (SPOT_POS nach echtem Plan) + Besitzer-Liste, keine Aktionen
     ├── MyBookings.tsx       # (ex Ledger.tsx) Künftige Buchungen mit Storno + offene/beglichene Schulden
     ├── Help.tsx             # Statische Bedienungsanleitung für User (Tab "Anleitung")
     ├── Admin.tsx            # Admin-Seite: Plätze zuweisen, Einladungs-Link, User verwalten, Tagessatz/Zahltag
