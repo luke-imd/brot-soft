@@ -70,7 +70,9 @@ export default function Garage({ userId }: { userId: string }) {
         <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-zinc-400">
           Objekt 2 · Ebene 0
         </div>
-        <div className="mt-2 grid grid-cols-[1fr_0.6fr_1fr_1fr_0.6fr_1fr_1fr_0.6fr_1fr] gap-1">
+        {/* ponytail: overflow-x-auto + min-w statt Mobile-Redesign — der Plan braucht ~370px, schmalere Handys scrollen */}
+        <div className="mt-2 overflow-x-auto pb-1">
+        <div className="grid min-w-96 grid-cols-[1fr_0.6fr_1fr_1fr_0.6fr_1fr_1fr_0.6fr_1fr] gap-1">
           {spots.map(spot => {
             const pos = SPOT_POS[spot.id]
             if (!pos) return null
@@ -103,6 +105,7 @@ export default function Garage({ userId }: { userId: string }) {
               </div>
             </div>
           ))}
+        </div>
         </div>
       </div>
 

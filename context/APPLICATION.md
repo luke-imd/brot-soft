@@ -38,8 +38,8 @@ Geschlossene Community: kein offener Self-Signup. Registrierung nur über den ge
 
 ## Kalender- und Garage-Anzeige
 
-- **Kalender** (Startseite): Monatsansicht. Jeder Tag mit mindestens einem freien Platz zeigt ein „n frei"-Badge. Tag anklicken öffnet die Liste der an diesem Tag freien Plätze; pro Platz werden die freien Stunden zu zusammenhängenden Bereichen gemergt und angezeigt (z. B. „8–12 Uhr, 14–18 Uhr" oder „ganztags").
-- **Garage**: rein statische Orientierungsseite — in CSS nachgebauter Grundriss von Objekt 2 (Kacheln nach dem echten Plan positioniert, Einfahrten unten, Besitzer-Initialen bzw. 🚲/🚜 für inaktive Plätze) plus Liste „wem gehört welcher Platz". Keine Buchungs- oder Freigabe-Aktionen — die passieren im Kalender.
+- **Kalender** (Startseite): Monatsansicht. Jeder Tag mit mindestens einem fremden freien Platz zeigt ein grünes „n frei"-Badge; ist der **eigene** Platz an dem Tag freigegeben, zusätzlich ein blaues „meins"-Badge (Besitzer sehen so ihre eigenen Freigaben). Tag anklicken öffnet die Liste der an diesem Tag freien Plätze; pro Platz werden die freien Stunden zu zusammenhängenden Bereichen gemergt und angezeigt (z. B. „8–12 Uhr, 14–18 Uhr" oder „ganztags"). Der eigene Platz erscheint darin als blaue Info-Zeile („von dir freigegeben") ohne Buchen-Formular — buchbar sind nur fremde Plätze.
+- **Garage**: rein statische Orientierungsseite — in CSS nachgebauter Grundriss von Objekt 2 (Kacheln nach dem echten Plan positioniert, Einfahrten unten, Besitzer-Initialen bzw. 🚲/🚜 für inaktive Plätze; auf schmalen Handys horizontal scrollbar) plus Liste „wem gehört welcher Platz". Keine Buchungs- oder Freigabe-Aktionen — die passieren im Kalender.
 
 ## Bewusste Auslassungen (YAGNI)
 

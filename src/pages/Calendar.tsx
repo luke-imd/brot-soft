@@ -52,11 +52,10 @@ export default function Calendar({ userId }: { userId: string }) {
     setSelectedDay(null)
   }
 
-  // Tag -> Map<spot_id, freie Stunden> (eigene Plätze ausgeblendet — die landen in "Mein Platz")
+  // Tag -> Map<spot_id, freie Stunden> (alle Plätze; eigene werden im UI markiert statt versteckt)
   function spotsOn(date: string) {
     const m = new Map<number, number[]>()
     for (const f of free.filter(x => x.date === date)) {
-      if (spots.find(s => s.id === f.spot_id)?.owner_id === userId) continue
       m.set(f.spot_id, [...(m.get(f.spot_id) ?? []), f.hour])
     }
     return m
@@ -106,6 +105,7 @@ export default function Calendar({ userId }: { userId: string }) {
   const today = localDate()
   const daySpots = selectedDay ? spotsOn(selectedDay) : null
   const mySpots = spots.filter(s => s.owner_id === userId)
+  const mySpotIds = new Set(mySpots.map(s => s.id))
   const claimable = spots.filter(s => !s.owner_id && s.active)
   const eyebrow = 'mb-2 text-[11px] font-extrabold uppercase tracking-wide text-zinc-500'
 
@@ -132,10 +132,12 @@ export default function Calendar({ userId }: { userId: string }) {
         {Array.from({ length: firstWeekday }, (_, i) => <div key={`pad${i}`} />)}
         {Array.from({ length: daysInMonth }, (_, i) => {
           const date = `${year}-${pad(month + 1)}-${pad(i + 1)}`
-          const count = spotsOn(date).size
+          const daySpotIds = [...spotsOn(date).keys()]
+          const count = daySpotIds.filter(id => !mySpotIds.has(id)).length
+          const mineFree = daySpotIds.some(id => mySpotIds.has(id))
           return (
             <button key={date} onClick={() => setSelectedDay(date)}
-              className={`h-16 rounded-xl border bg-white p-1.5 text-left text-sm transition-colors
+              className={`min-h-16 rounded-xl border bg-white p-1.5 text-left text-sm transition-colors
                 ${selectedDay === date ? 'border-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 hover:border-zinc-400'}`}>
               <span className={
                 date === today
@@ -144,11 +146,18 @@ export default function Calendar({ userId }: { userId: string }) {
               }>
                 {i + 1}
               </span>
-              {count > 0 && date >= today && (
-                <div className="mt-0.5">
-                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
-                    {count} frei
-                  </span>
+              {(count > 0 || mineFree) && date >= today && (
+                <div className="mt-0.5 flex flex-wrap gap-0.5">
+                  {count > 0 && (
+                    <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
+                      {count} frei
+                    </span>
+                  )}
+                  {mineFree && (
+                    <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-semibold text-blue-700">
+                      meins
+                    </span>
+                  )}
                 </div>
               )}
             </button>
@@ -163,7 +172,12 @@ export default function Calendar({ userId }: { userId: string }) {
           </h3>
           {daySpots.size === 0 && <p className="text-zinc-500">Keine freien Plätze an diesem Tag.</p>}
           {[...daySpots.entries()].sort(([a], [b]) => a - b)
-            .map(([spotId, hours]) => (
+            .map(([spotId, hours]) => mySpotIds.has(spotId) ? (
+              <div key={spotId} className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                <span className="font-medium">Platz {spotId} (dein Platz)</span> — von
+                dir freigegeben: {hourSpans(hours).map(fmtSpan).join(', ')} · zurückziehen unter „Mein Platz"
+              </div>
+            ) : (
               <details key={spotId} className="rounded-xl border border-zinc-200 p-3 transition-colors open:bg-zinc-50">
                 <summary className="cursor-pointer select-none text-sm font-medium">
                   Platz {spotId} — frei: {hourSpans(hours).map(fmtSpan).join(', ')}
