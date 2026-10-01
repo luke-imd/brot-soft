@@ -12,7 +12,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "server": "node --disable-warning=ExperimentalWarning --watch server/index.js"
   },
   "repository": {
     "type": "git",
@@ -26,7 +28,8 @@
   },
   "homepage": "https://github.com/luke-imd/brot-soft#readme",
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.8",
+    "express": "^5.2.1",
+    "nodemailer": "^10.0.13",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -39,5 +42,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }

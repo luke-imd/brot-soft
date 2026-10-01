@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { supabase } from './lib/supabase'
+import { api, type Me } from './lib/api'
 import Login from './Login'
 import Garage from './pages/Garage'
 import Calendar from './pages/Calendar'
@@ -8,11 +7,12 @@ import MyBookings from './pages/MyBookings'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import Join from './pages/Join'
+import ResetPassword from './pages/ResetPassword'
 
 const TABS = { kalender: 'Kalender', garage: 'Garage', buchungen: 'Meine Buchungen', anleitung: 'Anleitung', admin: 'Admin' } as const
 type Tab = keyof typeof TABS
 
-function PasswordModal({ recovery, onClose }: { recovery: boolean; onClose: () => void }) {
+function PasswordModal({ onClose }: { onClose: () => void }) {
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
   const [msg, setMsg] = useState('')
@@ -27,9 +27,12 @@ function PasswordModal({ recovery, onClose }: { recovery: boolean; onClose: () =
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (pw !== pw2) { setMsg('Die Passwörter stimmen nicht überein.'); return }
-    const { error } = await supabase.auth.updateUser({ password: pw })
-    if (error) setMsg(error.message)
-    else setDone(true)
+    try {
+      await api.post('/auth/password', { password: pw })
+      setDone(true)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    }
   }
 
   return (
@@ -44,13 +47,9 @@ function PasswordModal({ recovery, onClose }: { recovery: boolean; onClose: () =
         ) : (
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold tracking-tight">
-                {recovery ? 'Neues Passwort setzen' : 'Passwort ändern'}
-              </h2>
+              <h2 className="text-lg font-bold tracking-tight">Passwort ändern</h2>
               <p className="mt-0.5 text-sm text-zinc-500">
-                {recovery
-                  ? 'Du bist über einen E-Mail-Link hier. Leg jetzt dein Passwort fest.'
-                  : 'Mindestens 6 Zeichen. Gilt ab sofort für deinen Login.'}
+                Mindestens 6 Zeichen. Gilt ab sofort für deinen Login.
               </p>
             </div>
             <div className="space-y-1">
@@ -65,9 +64,7 @@ function PasswordModal({ recovery, onClose }: { recovery: boolean; onClose: () =
             </div>
             {msg && <p className="text-sm text-red-600">{msg}</p>}
             <div className="flex gap-2">
-              {!recovery && (
-                <button type="button" onClick={onClose} className="btn btn-outline flex-1">Abbrechen</button>
-              )}
+              <button type="button" onClick={onClose} className="btn btn-outline flex-1">Abbrechen</button>
               <button className="btn btn-primary flex-1">Speichern</button>
             </div>
           </form>
@@ -77,42 +74,33 @@ function PasswordModal({ recovery, onClose }: { recovery: boolean; onClose: () =
   )
 }
 
-const joinCode = new URLSearchParams(window.location.search).get('join')
-
-// Invite-/Recovery-Link landet mit type=... im URL-Hash -> direkt Passwort setzen lassen
-// (einmal beim Laden auswerten, supabase-js räumt den Hash danach weg)
-const fromAuthLink =
-  window.location.hash.includes('type=invite') || window.location.hash.includes('type=recovery')
+const params = new URLSearchParams(window.location.search)
+const joinCode = params.get('join')
+const resetToken = params.get('reset')
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null)
+  const [me, setMe] = useState<Me | null>(null)
   const [ready, setReady] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [userName, setUserName] = useState('')
   const [tab, setTab] = useState<Tab>('kalender')
-  const [showPw, setShowPw] = useState(fromAuthLink)
-  // "recovery" nur für die automatisch geöffnete Instanz; danach ist es ein normales "Passwort ändern"
-  const [recovery, setRecovery] = useState(fromAuthLink)
+  const [showPw, setShowPw] = useState(false)
 
-  useEffect(() => {
-    supabase.auth.getSession()
-      .then(({ data }) => setSession(data.session))
-      .catch(() => setSession(null))
-      .finally(() => setReady(true))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
-  }, [])
+  const refresh = () => api.get<Me>('/auth/me').then(setMe, () => setMe(null))
 
-  useEffect(() => {
-    if (!session) { setIsAdmin(false); setUserName(''); return }
-    supabase.from('profiles').select('is_admin, name').eq('id', session.user.id).single()
-      .then(({ data }) => { setIsAdmin(!!data?.is_admin); setUserName(data?.name ?? '') })
-  }, [session])
+  useEffect(() => { refresh().finally(() => setReady(true)) }, [])
+
+  async function logout() {
+    await api.post('/auth/logout').catch(() => {})
+    setMe(null)
+    setTab('kalender')
+  }
 
   if (!ready) return null
-  if (joinCode && !session) return <Join code={joinCode} />
-  if (!session) return <Login />
-  const userId = session.user.id
+  if (resetToken) return <ResetPassword token={resetToken} />
+  if (joinCode && !me) return <Join code={joinCode} />
+  if (!me) return <Login onLogin={refresh} />
+  const userId = me.id
+  const isAdmin = me.is_admin
+  const userName = me.name
   const visibleTabs = (Object.keys(TABS) as Tab[]).filter(t => t !== 'admin' || isAdmin)
   const nameWords = userName.trim().split(/\s+/)
   const userInitials = userName
@@ -156,7 +144,7 @@ export default function App() {
             Passwort ändern
           </button>
           <button
-            onClick={() => supabase.auth.signOut()}
+            onClick={logout}
             className="text-sm font-semibold text-zinc-500 transition-colors hover:text-zinc-900"
           >
             Logout
@@ -164,10 +152,7 @@ export default function App() {
         </div>
       </header>
       {showPw && (
-        <PasswordModal
-          recovery={recovery}
-          onClose={() => { setShowPw(false); setRecovery(false) }}
-        />
+        <PasswordModal onClose={() => setShowPw(false)} />
       )}
       <main className="mx-auto max-w-6xl p-4 sm:p-6">
         <div key={tab} className="fade-in">

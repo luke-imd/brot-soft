@@ -1,0 +1,12 @@
+# Synology Container Manager → Projekt → Erstellen → diese Datei verwenden.
+services:
+  garage:
+    build: .
+    image: garage:latest
+    container_name: garage
+    restart: unless-stopped
+    ports:
+      - "3000:3000"            # NAS-Port:Container-Port; davor hängt der DSM-Reverse-Proxy (HTTPS)
+    volumes:
+      - ./data:/data           # SQLite-Datenbank — dieser Ordner ist das Backup
+    env_file: .env

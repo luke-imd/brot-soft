@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { supabase } from './lib/supabase'
+import { api, attempt } from './lib/api'
 
-export default function Login() {
+export default function Login({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [msg, setMsg] = useState('')
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setMsg(error.message)
+    const [, error] = await attempt(api.post('/auth/login', { email, password }))
+    if (error) setMsg(error)
+    else onLogin()
   }
 
   async function forgot() {
@@ -17,10 +18,8 @@ export default function Login() {
       setMsg('E-Mail eingeben, dann nochmal klicken.')
       return
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    })
-    setMsg(error ? error.message : `Reset-Link an ${email} geschickt.`)
+    const [, error] = await attempt(api.post('/auth/forgot', { email }))
+    setMsg(error ?? `Falls ${email} registriert ist, kommt gleich ein Reset-Link per E-Mail.`)
   }
 
   return (

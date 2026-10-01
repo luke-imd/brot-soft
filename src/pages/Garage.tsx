@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 
 type SpotRow = { id: number; owner_id: string | null; active: boolean }
 
@@ -33,17 +33,12 @@ export default function Garage({ userId }: { userId: string }) {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('spots').select('id, owner_id, active').order('id'),
-      supabase.from('profiles').select('id, name'),
+      api.get<SpotRow[]>('/spots'),
+      api.get<{ id: string; name: string }[]>('/profiles'),
     ]).then(([s, p]) => {
-      const err = s.error ?? p.error
-      if (err) {
-        setLoadError(`Fehler beim Laden: ${err.message}`)
-        return
-      }
-      setSpots((s.data ?? []) as SpotRow[])
-      setNames(new Map((p.data ?? []).map(x => [x.id, x.name])))
-    })
+      setSpots(s)
+      setNames(new Map(p.map(x => [x.id, x.name])))
+    }, err => setLoadError(`Fehler beim Laden: ${err instanceof Error ? err.message : err}`))
   }, [])
 
   function initials(ownerId: string | null) {

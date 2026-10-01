@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { api, attempt } from '../lib/api'
 import { fmtEur } from '../lib/slots'
 
 type Profile = { id: string; name: string; is_admin: boolean; seeker: boolean }
@@ -13,18 +13,18 @@ export default function Admin({ userId }: { userId: string }) {
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {
-    const [p, s, st, inv] = await Promise.all([
-      supabase.from('profiles').select('id, name, is_admin, seeker').order('name'),
-      supabase.from('spots').select('id, owner_id, active').order('id'),
-      supabase.from('settings').select('day_rate_cents').single(),
-      supabase.from('invites').select('code').single(),
-    ])
-    const err = p.error ?? s.error ?? st.error ?? inv.error
-    if (err) { setMsg(`Fehler beim Laden: ${err.message}`); return }
-    setProfiles(p.data ?? [])
-    setSpots(s.data ?? [])
-    setRate(String((st.data?.day_rate_cents ?? 300) / 100))
-    setCode(inv.data?.code ?? '')
+    const [data, err] = await attempt(Promise.all([
+      api.get<Profile[]>('/profiles'),
+      api.get<Spot[]>('/spots'),
+      api.get<{ day_rate_cents: number }>('/settings'),
+      api.get<{ code: string }>('/admin/invite'),
+    ]))
+    if (err !== null) { setMsg(`Fehler beim Laden: ${err}`); return }
+    const [p, s, st, inv] = data
+    setProfiles(p)
+    setSpots(s)
+    setRate(String(st.day_rate_cents / 100))
+    setCode(inv.code)
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -33,22 +33,21 @@ export default function Admin({ userId }: { userId: string }) {
   const inviteLink = code ? `${window.location.origin}/?join=${code}` : ''
 
   async function assignSpot(spotId: number, ownerId: string | null) {
-    const { error } = await supabase.from('spots').update({ owner_id: ownerId }).eq('id', spotId)
-    setMsg(error ? error.message : `Platz ${spotId}: Besitzer = ${name(ownerId)}`)
+    const [, error] = await attempt(api.put(`/admin/spots/${spotId}`, { owner_id: ownerId }))
+    setMsg(error ?? `Platz ${spotId}: Besitzer = ${name(ownerId)}`)
     await load()
   }
 
   async function toggleAdmin(p: Profile) {
-    const { error } = await supabase.from('profiles').update({ is_admin: !p.is_admin }).eq('id', p.id)
-    setMsg(error ? error.message : `${p.name}: Admin = ${!p.is_admin ? 'ja' : 'nein'}`)
+    const [, error] = await attempt(api.put(`/admin/profiles/${p.id}`, { is_admin: !p.is_admin }))
+    setMsg(error ?? `${p.name}: Admin = ${!p.is_admin ? 'ja' : 'nein'}`)
     await load()
   }
 
   async function removeUser(p: Profile) {
     if (!confirm(`${p.name} wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return
-    const { data, error } = await supabase.functions.invoke('delete-user', { body: { userId: p.id } })
-    if (error) { setMsg('Löschen fehlgeschlagen.'); return }
-    if (!data?.ok) { setMsg(data?.error ?? 'Löschen fehlgeschlagen.'); return }
+    const [, error] = await attempt(api.del(`/admin/profiles/${p.id}`))
+    if (error) { setMsg(error); return }
     setMsg(`${p.name} gelöscht.`)
     await load()
   }
@@ -56,22 +55,21 @@ export default function Admin({ userId }: { userId: string }) {
   async function saveRate() {
     const cents = Math.round(parseFloat(rate.replace(',', '.')) * 100)
     if (!Number.isFinite(cents) || cents < 0) { setMsg('Ungültiger Tagessatz.'); return }
-    const { error } = await supabase.from('settings').update({ day_rate_cents: cents }).eq('id', true)
-    setMsg(error ? error.message : `Tagessatz gespeichert: ${fmtEur(cents)}`)
+    const [, error] = await attempt(api.put('/admin/settings', { day_rate_cents: cents }))
+    setMsg(error ?? `Tagessatz gespeichert: ${fmtEur(cents)}`)
   }
 
   async function newCode() {
     if (!confirm('Neuen Einladungs-Link erzeugen? Der alte Link funktioniert dann nicht mehr.')) return
-    const fresh = crypto.randomUUID().replace(/-/g, '')
-    const { error } = await supabase.from('invites').update({ code: fresh }).eq('id', true)
-    setMsg(error ? error.message : 'Neuer Einladungs-Link erzeugt.')
+    const [, error] = await attempt(api.post('/admin/invite'))
+    setMsg(error ?? 'Neuer Einladungs-Link erzeugt.')
     await load()
   }
 
   async function zahltag() {
     if (!confirm('Zahltag-E-Mail an alle User schicken?')) return
-    const { data, error } = await supabase.functions.invoke('zahltag')
-    setMsg(error ? `Fehler: ${error.message}` : `Verschickt an ${data?.sent ?? '?'} Empfänger.`)
+    const [data, error] = await attempt(api.post<{ sent: number }>('/admin/zahltag'))
+    setMsg(error !== null ? `Fehler: ${error}` : `Verschickt an ${data.sent} Empfänger.`)
   }
 
   return (

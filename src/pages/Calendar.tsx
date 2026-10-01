@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 import { fmtSpan, hourSpans, localDate, type Slot } from '../lib/slots'
 import RangeForm from '../components/RangeForm'
 
@@ -26,21 +26,19 @@ export default function Calendar({ userId }: { userId: string }) {
   const last = `${year}-${pad(month + 1)}-${pad(daysInMonth)}`
 
   const load = useCallback(async () => {
-    const [f, s, st] = await Promise.all([
-      supabase.from('free_slots').select('*')
-        .gte('date', first).lte('date', last).is('booking_id', null),
-      supabase.from('spots').select('id, owner_id, active').order('id'),
-      supabase.from('settings').select('day_rate_cents').single(),
-    ])
-    const err = f.error ?? s.error ?? st.error
-    if (err) {
-      setLoadError(`Fehler beim Laden: ${err.message}`)
-      return
+    try {
+      const [f, s, st] = await Promise.all([
+        api.get<FreeRow[]>(`/free-slots?from=${first}&to=${last}`),
+        api.get<SpotRow[]>('/spots'),
+        api.get<{ day_rate_cents: number }>('/settings'),
+      ])
+      setLoadError('')
+      setFree(f)
+      setSpots(s)
+      setRate(st.day_rate_cents)
+    } catch (err) {
+      setLoadError(`Fehler beim Laden: ${err instanceof Error ? err.message : err}`)
     }
-    setLoadError('')
-    setFree((f.data ?? []) as FreeRow[])
-    setSpots((s.data ?? []) as SpotRow[])
-    setRate(st.data?.day_rate_cents ?? 300)
   }, [first, last])
 
   useEffect(() => { load() }, [load])
@@ -62,41 +60,31 @@ export default function Calendar({ userId }: { userId: string }) {
   }
 
   async function book(spotId: number, slots: Slot[]) {
-    const { error } = await supabase.rpc('book_spot', { p_spot_id: spotId, p_slots: slots })
-    if (error) throw new Error(error.message)
+    await api.post('/bookings', { spot_id: spotId, slots })
     setMsg(`Platz ${spotId} gebucht ✓`)
     await load()
   }
 
   async function freeUp(spotId: number, slots: Slot[]) {
-    const { error } = await supabase.from('free_slots').upsert(
-      slots.map(s => ({ spot_id: spotId, date: s.date, hour: s.hour })),
-      { onConflict: 'spot_id,date,hour', ignoreDuplicates: true },
-    )
-    if (error) throw new Error(error.message)
+    await api.post('/free-slots', { spot_id: spotId, slots })
     setMsg(`Platz ${spotId} freigegeben ✓`)
     await load()
   }
 
   async function retract(spotId: number, slots: Slot[]) {
-    // stundengenau löschen: eine Query pro betroffenem Tag
-    for (const date of [...new Set(slots.map(s => s.date))]) {
-      const hours = slots.filter(s => s.date === date).map(s => s.hour)
-      const { error } = await supabase.from('free_slots').delete()
-        .eq('spot_id', spotId).eq('date', date).is('booking_id', null).in('hour', hours)
-      if (error) throw new Error(error.message)
-    }
+    // stundengenau, nur ungebuchte Stunden (der Server lässt gebuchte stehen)
+    await api.post('/free-slots/retract', { spot_id: spotId, slots })
     setMsg('Freigabe zurückgezogen (bereits gebuchte Stunden bleiben bestehen)')
     await load()
   }
 
   async function claim() {
-    const { error } = await supabase.rpc('claim_spot', { p_spot_id: Number(claimId) })
-    if (error) {
-      setErrMsg(error.message)
-    } else {
+    try {
+      await api.post(`/spots/${Number(claimId)}/claim`)
       setErrMsg('')
       setMsg(`Platz ${claimId} gehört jetzt dir ✓`)
+    } catch (err) {
+      setErrMsg(err instanceof Error ? err.message : String(err))
     }
     await load()
   }
