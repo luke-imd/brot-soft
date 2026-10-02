@@ -31,7 +31,7 @@ WG-Tool für **23 Garagenplätze** und **max. 50 User**. Platzbesitzer geben ihr
 
 - **Frontend**: React 19 + TypeScript + Tailwind v4, Vite-SPA. Spricht über `src/lib/api.ts` (`fetch`) mit der eigenen API.
 - **Backend**: Node (Express 5, plain JavaScript ESM) in `server/`, Datenbank SQLite über das eingebaute `node:sqlite` (eine Datei, `/data/garage.db`). Server liefert API (`/api`) und das gebaute Frontend aus.
-- **Hosting**: ein Docker-Container auf der Synology NAS (Container Manager + DSM-Reverse-Proxy), siehe `docs/SYNOLOGY.md`. Supabase + Vercel sind abgelöst.
+- **Hosting**: ein Docker-Container auf der Synology NAS (Container Manager + DSM-Reverse-Proxy), siehe `docs/SYNOLOGY.md`. Image baut GitHub Actions bei jedem Push auf `main` → `ghcr.io/luke-imd/brot-soft:latest`; die NAS zieht es per Aufgabenplaner. Supabase + Vercel sind abgelöst.
 - **Auth**: E-Mail + Passwort (scrypt), Session-Cookie (HttpOnly). Registrierung nur über den geheimen Einladungs-Link `?join=CODE`; der erste registrierte User wird Admin. Passwort vergessen per SMTP-Mail mit `?reset=TOKEN`.
 - **Zugriffskontrolle**: im Server pro Endpunkt. Alle eingeloggten User dürfen **lesen** (Transparenz gewollt); Schreiben nur über die Endpunkte mit ihren Regeln.
 - **Tests**: Vitest — Slot-/Preis-Logik (`src/lib/slots.test.ts`) und API-Tests gegen den echten Server mit In-Memory-DB (`server/api.test.js`).
@@ -68,7 +68,9 @@ server/
 ├── cli.js                   # Notfall: invite | set-password | make-admin | backup
 └── api.test.js              # API-Tests (Vitest)
 
-Dockerfile, docker-compose.yml, .env.example   # Container für die Synology
+Dockerfile, docker-compose.yml, .env.example   # Container für die Synology (Compose zieht ghcr.io-Image)
+docker-compose.build.yml     # Override: Image lokal bauen statt laden
+.github/workflows/docker.yml # Test + Multi-Arch-Image-Build bei Push auf main → ghcr.io
 docs/SYNOLOGY.md             # Betriebsanleitung NAS (Setup, Reverse Proxy, SMTP, Backup, Updates)
 docs/superpowers/            # Spec + Implementierungsplan (Design-Historie)
 README.md                    # Lokal entwickeln, Admin-Aufgaben
@@ -82,7 +84,7 @@ npm run dev       # Vite Dev-Server, /api wird an :3000 weitergeleitet
 npm run build     # tsc --noEmit && vite build
 npm start         # Production: Server liefert dist/ + API aus
 npm test          # Vitest (Slot-/Preis-Logik + API-Tests)
-docker compose up -d --build   # Container wie auf der NAS
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build   # Container lokal bauen
 ```
 
 ## Wichtige Hinweise

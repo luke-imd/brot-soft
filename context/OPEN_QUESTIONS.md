@@ -4,9 +4,10 @@
 
 Anleitung: `docs/SYNOLOGY.md`.
 
-- [ ] **Container auf der NAS starten** (Container Manager → Projekt aus `/docker/garage`). Den Docker-Build
-      konnte die Entwicklungsumgebung nicht testen (Docker Hub dort gesperrt) — der Server selbst ist getestet,
-      beim ersten Build auf der NAS das Protokoll prüfen.
+- [x] **Container auf der NAS starten** — läuft (zunächst aus einem ZIP mit lokalem Build).
+- [ ] **Auf GitHub-Image umstellen**: `main` mergen, damit die Action das erste Image baut (Lauf unter
+      *Actions* prüfen — der Workflow wurde ohne echten Lauf geschrieben), dann auf der NAS `docker login ghcr.io`
+      (oder Package public) und den Umstieg aus `docs/SYNOLOGY.md` §8 machen, Aufgabenplaner-Update-Script anlegen.
 - [ ] **`.env` anlegen**: `APP_URL` + `SMTP_*`.
 - [ ] **Ersten Admin registrieren** über den `?join=`-Link aus dem Container-Protokoll.
 - [ ] **Externer Zugriff**: DDNS, Let's-Encrypt-Zertifikat, DSM-Reverse-Proxy auf Port 3000, Router 443 → NAS.

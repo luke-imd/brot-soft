@@ -117,6 +117,9 @@ Storno (Fremd, Same-Day, beglichen), Begleichen, Claim, Admin-Funktionen, User l
 
 ## Deploy
 
-Docker-Image (`Dockerfile`, multi-stage, `node:24-alpine`), `docker-compose.yml` mit Bind-Mount `./data:/data`
-und `.env`. Auf der Synology über Container Manager → Projekt, davor DSM-Reverse-Proxy mit Let's Encrypt.
-Vollständige Anleitung: `docs/SYNOLOGY.md`.
+Docker-Image (`Dockerfile`, multi-stage, `node:24-alpine`; bewusst ohne `--platform=$BUILDPLATFORM`, damit der
+lokale Build auch mit älteren Docker-Buildern auf der NAS läuft — ARM baut die Action per QEMU). **GitHub Actions** (`.github/workflows/docker.yml`) testet und baut bei jedem Push
+auf `main` das Image für `linux/amd64` + `linux/arm64` und pusht es nach `ghcr.io/luke-imd/brot-soft:latest`
+(+ Tag mit Commit-SHA). Die NAS hat nur `docker-compose.yml` (zieht dieses Image), `.env` und `data/`; ein
+DSM-Aufgabenplaner-Script macht täglich `docker compose pull && up -d`. Selbst bauen geht weiterhin mit
+`docker-compose.build.yml`. Davor DSM-Reverse-Proxy mit Let's Encrypt. Vollständige Anleitung: `docs/SYNOLOGY.md`.

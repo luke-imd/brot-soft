@@ -1,8 +1,8 @@
 # Synology Container Manager → Projekt → Erstellen → diese Datei verwenden.
+# Das Image baut GitHub bei jedem Push auf main (.github/workflows/docker.yml); die NAS lädt es nur.
 services:
   garage:
-    build: .
-    image: garage:latest
+    image: ghcr.io/luke-imd/brot-soft:latest
     container_name: garage
     restart: unless-stopped
     ports:
