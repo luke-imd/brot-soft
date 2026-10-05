@@ -97,11 +97,12 @@ Neue Versionen entstehen von selbst, sobald auf GitHub nach `main` gepusht wird 
 Erstellen → Geplante Aufgabe → Benutzerdefiniertes Script, Benutzer **`root`**, täglich z. B. 04:00:
 
 ```sh
-cd /volume1/docker/garage && docker compose pull -q && docker compose up -d && docker image prune -f
+cd /volume1/docker/garage && docker compose -p garage pull -q && docker compose -p garage up -d && docker image prune -f
 ```
 
 Gibt es kein neues Image, passiert nichts. Sofort aktualisieren: die Aufgabe im Aufgabenplaner
-markieren → **Ausführen**. (Pfad `/volume1/...` anpassen, falls der Ordner auf einem anderen Volume liegt.)
+markieren → **Ausführen**. Anpassen: den Pfad (File Station → Rechtsklick auf den Ordner → Eigenschaften →
+„Speicherort“) und `-p garage` auf den Projektnamen im Container Manager, falls er anders heißt.
 
 ### Umstieg von der ZIP-Installation
 
