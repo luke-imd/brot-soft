@@ -1,0 +1,6 @@
+# Lokal selbst bauen statt das Image von GitHub zu laden:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+services:
+  garage:
+    build: .
+    image: garage:local

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 
 // Selbstregistrierung über den geheimen Einladungs-Link (?join=CODE).
-// Die join-Edge-Function legt den User an (kein Bestätigungs-Mail), danach direkt Login.
+// Der Server legt den User an (kein Bestätigungs-Mail) und loggt direkt ein.
 export default function Join({ code }: { code: string }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -14,8 +14,8 @@ export default function Join({ code }: { code: string }) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    supabase.functions.invoke('join', { body: { code, list: true } })
-      .then(({ data }) => setFreeSpots(data?.ok ? data.spots ?? [] : []))
+    api.post<{ spots: number[] }>('/join', { code, list: true })
+      .then(data => setFreeSpots(data.spots ?? []))
       .catch(() => setFreeSpots([]))
   }, [code])
 
@@ -24,23 +24,12 @@ export default function Join({ code }: { code: string }) {
     setBusy(true)
     setError('')
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('join', {
-        body: {
-          code, name, email, password,
-          spot_id: hasSpot && spotId ? Number(spotId) : null,
-        },
+      // Der Server legt den Account an und loggt direkt ein (Session-Cookie).
+      const data = await api.post<{ ok: true; warning?: string }>('/join', {
+        code, name, email, password,
+        spot_id: hasSpot && spotId ? Number(spotId) : null,
       })
-      if (fnError) throw new Error('Registrierung fehlgeschlagen. Bitte später erneut versuchen.')
-      if (!data?.ok) {
-        setError(data?.error ?? 'Registrierung fehlgeschlagen.')
-        return
-      }
       if (data.warning) alert(data.warning)
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError) {
-        setError('Account angelegt, aber Login fehlgeschlagen. Bitte auf der Startseite einloggen.')
-        return
-      }
       // ?join aus der URL entfernen und sauber neu laden
       window.location.href = window.location.origin
     } catch (err) {

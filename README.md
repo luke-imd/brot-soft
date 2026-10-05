@@ -6,32 +6,23 @@ Spec: `docs/superpowers/specs/2026-08-03-hourly-booking-redesign-design.md`
 
 ## Stack
 
-Supabase (Postgres + Auth + Edge Functions) · React/TS/Tailwind (Vite) · Vercel
+Ein Docker-Container: Node (Express) + SQLite (`node:sqlite`) liefert API und das React/TS/Tailwind-Frontend
+(Vite) aus. Läuft auf der Synology NAS — **Betriebsanleitung: [`docs/SYNOLOGY.md`](docs/SYNOLOGY.md)**.
+(Bis Oktober 2026 lief die App auf Supabase + Vercel.)
 
 ## Lokal entwickeln
 
 ```bash
 npm install
-# .env.local anlegen:
-#   VITE_SUPABASE_URL=https://dvdasdgduhfalrtcjrdb.supabase.co
-#   VITE_SUPABASE_ANON_KEY=<publishable key aus Supabase Studio → Settings → API>
-npm run dev
-npm test          # Unit-Tests (Slot-/Preis-Logik)
+npm run server    # API auf :3000 (DB in ./data/garage.db, startet bei Änderungen neu)
+npm run dev       # Vite-Frontend, leitet /api an :3000 weiter
+npm test          # Unit-Tests (Slot-/Preis-Logik) + API-Tests (In-Memory-DB)
 ```
 
-DB-Smoke-Test: `scripts/db-smoke.sql` im Supabase SQL Editor ausführen (rollt selbst zurück).
+Beim ersten Start steht im Server-Log ein `?join=…`-Link — der erste registrierte User wird Admin.
+Mails (Passwort vergessen, Zahltag) brauchen `SMTP_*`-Variablen (siehe `.env.example`), lokal optional.
 
-## Einmalige Einrichtung (Supabase Studio)
-
-1. **Signups deaktivieren:** Authentication → Sign In / Up → "Allow new users to sign up" aus.
-   (Registrierung läuft über den Einladungs-Link in der App, nicht über offenen Signup.)
-2. **Ersten Admin setzen:** Tabelle `profiles` → bei dir `is_admin = true`. Weitere Admins
-   danach in der App (Tab "Admin" → User verwalten).
-3. **Resend** (nur für den Zahltag-Versand): Account auf resend.com, API-Key erzeugen, in
-   Supabase unter Edge Functions → zahltag → Secrets als `RESEND_API_KEY` hinterlegen.
-   Ohne eigene verifizierte Domain versendet Resend nur an die eigene Account-Adresse —
-   für den echten Rundversand Domain bei Resend verifizieren und `from:` in
-   `supabase/functions/zahltag/index.ts` anpassen.
+Production-Build lokal: `npm run build && npm start` → http://localhost:3000
 
 ## Betrieb (Admin-Aufgaben) — alles in der App, Tab "Admin"
 
@@ -44,12 +35,5 @@ DB-Smoke-Test: `scripts/db-smoke.sql` im Supabase SQL Editor ausführen (rollt s
   User keine Buchungen oder Schulden(-Historie) hat).
 - **Tagessatz ändern / Zahltag-Mail:** unter "Tagessatz & Zahltag".
 
-Registrierung verschickt keine E-Mails (`email_confirm: true`). Nur "Passwort vergessen" und
-der Zahltag-Versand nutzen E-Mail.
-
-## Deploy (Vercel)
-
-1. Repo zu GitHub pushen, in Vercel importieren (Framework: Vite, Root: Repo-Root).
-2. Env-Vars `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` setzen.
-3. Supabase: Authentication → URL Configuration → Site URL auf die Vercel-URL setzen
-   (sonst zeigen Invite- und Passwort-Reset-Links auf localhost).
+Notfall ohne UI/Mail (Passwort setzen, Admin machen, Backup): `node server/cli.js` im Container,
+siehe `docs/SYNOLOGY.md`.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { api, attempt } from '../lib/api'
 import { fmtEur, localDate, priceCents } from '../lib/slots'
 
 type LedgerRow = {
@@ -19,43 +19,42 @@ export default function MyBookings({ userId }: { userId: string }) {
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {
-    const [l, p, b, st] = await Promise.all([
-      supabase.from('ledger').select('*').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, name'),
-      supabase.from('bookings').select('id, spot_id, free_slots(date, hour)').eq('borrower_id', userId),
-      supabase.from('settings').select('day_rate_cents').single(),
-    ])
-    const err = l.error ?? p.error ?? b.error ?? st.error
-    if (err) {
-      setMsg(`Fehler beim Laden: ${err.message}`)
+    const [data, err] = await attempt(Promise.all([
+      api.get<LedgerRow[]>('/ledger'),
+      api.get<{ id: string; name: string }[]>('/profiles'),
+      api.get<MyBooking[]>('/my-bookings'),
+      api.get<{ day_rate_cents: number }>('/settings'),
+    ]))
+    if (err !== null) {
+      setMsg(`Fehler beim Laden: ${err}`)
       return
     }
-    setRows((l.data ?? []) as LedgerRow[])
-    setNames(new Map((p.data ?? []).map(x => [x.id, x.name])))
-    setRate(st.data?.day_rate_cents ?? 300)
+    const [l, p, b, st] = data
+    setRows(l)
+    setNames(new Map(p.map(x => [x.id, x.name])))
+    setRate(st.day_rate_cents)
     const today = localDate()
     setBookings(
-      ((b.data ?? []) as { id: string; spot_id: number; free_slots: { date: string; hour: number }[] }[])
-        .map(x => ({ id: x.id, spot_id: x.spot_id, slots: [...x.free_slots].sort((a, z) => a.date.localeCompare(z.date)) }))
+      b.map(x => ({ ...x, slots: [...x.slots].sort((a, z) => a.date.localeCompare(z.date)) }))
         .filter(x => x.slots.length > 0 && x.slots[x.slots.length - 1].date >= today)
         .sort((a, z) => a.slots[0].date.localeCompare(z.slots[0].date)),
     )
-  }, [userId])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
   const name = (id: string | null) => (id && names.get(id)) || '?'
 
   async function settle(id: string) {
-    const { error } = await supabase.rpc('settle_ledger', { p_ledger_id: id })
-    setMsg(error ? error.message : '')
+    const [, error] = await attempt(api.post(`/ledger/${id}/settle`))
+    setMsg(error ?? '')
     await load()
   }
 
   async function cancel(b: MyBooking) {
     if (!confirm(`Buchung für Platz ${b.spot_id} stornieren?`)) return
-    const { error } = await supabase.rpc('cancel_booking', { p_booking_id: b.id })
-    setMsg(error ? error.message : 'Buchung storniert.')
+    const [, error] = await attempt(api.post(`/bookings/${b.id}/cancel`))
+    setMsg(error ?? 'Buchung storniert.')
     await load()
   }
 

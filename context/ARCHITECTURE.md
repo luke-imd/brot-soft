@@ -1,81 +1,125 @@
-# ARCHITECTURE — DB, RLS, RPCs, Frontend
+# ARCHITECTURE — Server, DB, API, Frontend
 
 ## Prinzip
 
-Kein eigener Backend-Server. Das React-SPA spricht via `supabase-js` **direkt** mit Postgres. Sicherheit = Row Level Security + `security definer`-RPCs, nicht App-Code. Drei Edge Functions (Zahltag-Mail, Selbstregistrierung, User löschen) sind die Ausnahme, weil sie Service-Role-Rechte oder externen Mailversand brauchen.
+Ein Node-Prozess (Express 5) in einem Docker-Container: liefert das gebaute React-SPA (`dist/`) aus und
+stellt unter `/api` eine JSON-API bereit. Daten in **SQLite** (eingebautes `node:sqlite`, keine nativen
+Abhängigkeiten), eine Datei im Volume `/data/garage.db`. Alle Schreib-Regeln (früher RLS-Policies und
+`security definer`-RPCs in Supabase) stehen jetzt in genau einem Endpunkt in `server/app.js`.
 
-## Datenmodell
+Race-Sicherheit: `node:sqlite` ist synchron und der Server ein einzelner Prozess — jede Transaktion
+(`tx()` in `server/db.js`, `begin immediate`) läuft komplett durch, bevor der nächste Request
+drankommt. Zusätzlich verhindern PK `(spot_id, date, hour)` und bedingte `UPDATE ... WHERE booking_id is null`
+Doppelbuchungen auf DB-Ebene.
 
-Quelle: `supabase/migrations/20260723000001_schema.sql`, Stunden-Umstellung in `...0006_hourly_spots.sql`. Alle Beträge in **Cents (int)**.
+## Datenmodell (`server/db.js`)
+
+Schema wird beim Start per `create table if not exists` angelegt, Seed beim ersten Start (23 Plätze,
+5/7/9/19 inaktiv, Tagessatz 300, zufälliger Einladungs-Code). Alle Beträge in **Cents (int)**, Datum als
+Text `YYYY-MM-DD`, Zeitstempel als ISO-String, Booleans als 0/1 (API liefert `true/false`).
+`pragma foreign_keys = on`, WAL-Modus.
 
 | Tabelle | Spalten (wesentlich) | Zweck |
 |---|---|---|
-| `profiles` | `id` (PK, FK→`auth.users`), `name`, `is_admin`, `seeker` | 1:1 zu Auth-User; per Trigger `handle_new_user` bei Auth-Insert angelegt; `seeker` = informativer „sucht Platz"-Marker, bei der Registrierung optional gesetzt |
-| `spots` | `id` (PK, int, 1–23), `owner_id` (FK→profiles, nullable), `active` (bool, default true) | 23 Plätze; 5/7/9/19 sind `active = false` (Fahrrad-/Traktor-Abstellplätze), `owner_id` dort dauerhaft `null` |
-| `settings` | `id` (bool-PK, immer true), `day_rate_cents` (aktuell 300 = 3 €) | Single-Row-Konfiguration (Tagespauschale) |
-| `invites` | `id` (bool-PK, immer true), `code` | Single-Row: geheimer Registrierungs-Code für den `?join=`-Link. Nur Admins lesen/rotieren (RLS) |
-| `bookings` | `id` (uuid), `spot_id`, `borrower_id`, `created_at` | Eine Buchung; zugehörige Stunden referenzieren sie |
-| `free_slots` | **PK `(spot_id, date, hour)`**, `hour` (int, `check between 0 and 23`), `booking_id` (FK→bookings, `on delete set null`) | Eine Zeile pro freigegebener Stunde; deckt `[hour, hour+1)` ab (Ende exklusiv); `booking_id null`=frei, gesetzt=gebucht |
-| `ledger` | `id` (uuid), `booking_id` (unique, FK `on delete cascade`), `debtor_id`, `creditor_id`, `amount_cents`, `created_at`, `settled_at`, `settled_by` | Eine Schuldposition pro Buchung; Settled-Felder = Log |
+| `users` | `id` (uuid), `email` (unique, lowercase), `name`, `password_hash` (scrypt), `is_admin`, `seeker`, `created_at` | Ersetzt `auth.users` + `profiles` |
+| `sessions` | `token_hash` (sha256 des Cookie-Tokens), `user_id` (cascade), `expires_at` | Login-Sessions, 180 Tage |
+| `password_resets` | `token_hash`, `user_id` (cascade), `expires_at` | Einmal-Reset-Tokens, 60 Minuten |
+| `spots` | `id` (1–23), `owner_id` (nullable), `active` | 5/7/9/19 inaktiv, `owner_id` dort dauerhaft null |
+| `settings` | `id = 1`, `day_rate_cents` | Single-Row, Tagespauschale |
+| `invites` | `id = 1`, `code` | Single-Row, geheimer `?join=`-Code |
+| `bookings` | `id` (uuid), `spot_id`, `borrower_id`, `created_at` | Eine Buchung |
+| `free_slots` | **PK `(spot_id, date, hour)`**, `hour` 0–23, `booking_id` (FK `on delete set null`) | Eine Zeile pro freigegebener Stunde `[hour, hour+1)`; `booking_id null` = frei |
+| `ledger` | `id`, `booking_id` (unique, FK `on delete cascade`), `debtor_id`, `creditor_id`, `amount_cents`, `created_at`, `settled_at`, `settled_by` | Eine Schuldposition pro Buchung |
 
-FK-Verhalten trägt die Storno-Semantik: beim Löschen einer Buchung werden ihre Slots via `on delete set null` wieder frei und der Ledger-Eintrag via `on delete cascade` gelöscht.
+FK-Verhalten trägt die Storno-Semantik: Buchung löschen → Slots wieder frei, Ledger-Eintrag gelöscht.
+Schema-Änderungen: `server/db.js` additiv erweitern (`create ... if not exists`, bei neuen Spalten ein
+`alter table` mit Existenz-Check), weil bestehende NAS-Datenbanken nicht neu angelegt werden.
 
-## RLS-Policies
+## Auth (`server/auth.js`)
 
-Quelle: `supabase/migrations/20260723000002_rls_rpc.sql`. RLS auf allen 7 Tabellen aktiv (`invites` inklusive), durch die Stunden-Migration unverändert.
+- Passwort: `scrypt` mit Salt (`scrypt$salt$hash`), Vergleich `timingSafeEqual`.
+- Session: zufälliges Token im Cookie `garage_sid` (`HttpOnly`, `SameSite=Lax`, `Secure` hinter HTTPS
+  via `trust proxy`), in der DB nur der sha256-Hash.
+- CSRF: schreibende `/api`-Requests müssen `Content-Type: application/json` haben (sonst 415) — fremde
+  Seiten können das ohne CORS-Preflight nicht senden; CORS ist nicht freigegeben.
+- Rate-Limit (In-Memory, pro IP, 30 / 15 min) auf Login, Passwort vergessen/Reset, Registrierung.
+- Passwort ändern meldet alle anderen Sessions ab; Reset meldet alle Sessions ab.
 
-- **`read_all`** (SELECT, alle Tabellen, `authenticated`): jeder eingeloggte User liest alles (Transparenz).
-- **`owner_frees`** (INSERT auf `free_slots`): nur wenn `booking_id is null` **und** der Platz dem User gehört → Besitzer gibt eigene Plätze frei.
-- **`owner_retracts`** (DELETE auf `free_slots`): gleiche Bedingung → Freigabe zurückziehen, nur ungebuchte Slots.
-- **`admin_updates`** (UPDATE auf `spots`/`settings`/`profiles`): nur `is_admin()`. → trägt die Admin-Seite (Plätze zuweisen, Tagessatz, Admin-Rechte toggeln). `profiles.seeker` wird bei der Registrierung per Service-Role (Edge Function, umgeht RLS) gesetzt; danach nur noch über diese Admin-Policy änderbar.
-- **`admin_reads`/`admin_updates`** auf `invites`: nur `is_admin()` — Einladungs-Code lesen/rotieren.
-- **Kein** direktes INSERT/UPDATE/DELETE auf `bookings`/`ledger` für User — der einzige Weg führt über die RPCs. Dadurch können Beträge nicht clientseitig gefälscht werden. `spots.owner_id` kann außerdem per `claim_spot`-RPC (statt RLS) vom User selbst gesetzt werden, solange der Platz besitzerlos und aktiv ist.
+## API (`server/app.js`)
 
-Helper: `is_admin()` — `security definer`, liest `profiles.is_admin` für `auth.uid()`.
+Fehler immer als `{ error: "<deutsche Meldung>" }` mit 4xx (Business-Regel 400, nicht eingeloggt 401,
+kein Recht 403).
 
-## RPCs (`security definer`, alle `set search_path = public`)
+| Methode + Pfad | Wer | Was (früheres Supabase-Gegenstück) |
+|---|---|---|
+| `GET /api/health` | alle | Healthcheck für Docker |
+| `GET /api/auth/me` | eingeloggt | `{id,email,name,is_admin}` |
+| `POST /api/auth/login` · `/logout` | alle | `signInWithPassword` / `signOut` |
+| `POST /api/auth/password` | eingeloggt | `updateUser({password})` |
+| `POST /api/auth/forgot` | alle | Reset-Mail mit `APP_URL/?reset=TOKEN` (gleiche Antwort auch für unbekannte Adressen) |
+| `POST /api/auth/reset` | Token | neues Passwort + direkt eingeloggt |
+| `POST /api/join` | Invite-Code | `join`-Edge-Function: `{code, list:true}` → freie Plätze; sonst Registrierung (50-Deckel, Wunsch-Platz bedingt, **erster User wird Admin**), loggt direkt ein |
+| `GET /api/spots` · `/profiles` · `/settings` · `/ledger` | eingeloggt | `read_all` (Transparenz) |
+| `GET /api/free-slots?from&to` | eingeloggt | ungebuchte Stunden im Zeitraum |
+| `GET /api/my-bookings` | eingeloggt | eigene Buchungen `{id, spot_id, slots[]}` |
+| `POST /api/free-slots` | Besitzer | `owner_frees` (Duplikate ignoriert) |
+| `POST /api/free-slots/retract` | Besitzer | `owner_retracts` (nur ungebuchte Stunden) |
+| `POST /api/bookings` | eingeloggt | `book_spot`: atomar Buchung + Stunden + Ledger, Preis = `distinct Tage × Tagessatz`, nur `date >= heute` |
+| `POST /api/bookings/:id/cancel` | Bucher | `cancel_booking`: nur bis Vortag, nicht wenn beglichen |
+| `POST /api/ledger/:id/settle` | Schuldner/Gläubiger | `settle_ledger` |
+| `POST /api/spots/:id/claim` | eingeloggt | `claim_spot` (besitzerlos + aktiv, erster gewinnt) |
+| `PUT /api/admin/spots/:id` | Admin | Besitzer setzen (nur aktive Plätze) |
+| `PUT /api/admin/profiles/:id` | Admin | Admin-Recht (nicht für sich selbst) |
+| `DELETE /api/admin/profiles/:id` | Admin | `delete-user`: nur ohne Buchungs-/Ledger-Historie, nie sich selbst, Plätze werden frei |
+| `PUT /api/admin/settings` | Admin | Tagessatz |
+| `GET` / `POST /api/admin/invite` | Admin | Code lesen / rotieren |
+| `POST /api/admin/zahltag` | Admin | Zahltag-Mail per SMTP (`to` Admin, `bcc` alle anderen) |
 
-- **`book_spot(p_spot_id int, p_slots jsonb) → uuid`** — `p_slots` = `[{"date":"YYYY-MM-DD","hour":0-23}]`. Prüft Auth/Besitzer/Eigenplatz, legt Buchung an, setzt `booking_id` auf die passenden freien, zukünftigen Stunden-Slots, prüft dass die Trefferzahl der erwarteten entspricht (sonst Exception → Rollback), berechnet den Betrag als **Tagespauschale**: `count(distinct date) * day_rate_cents` (keine Division — die Stundenzahl pro Tag ist irrelevant), legt Ledger-Eintrag an. Atomar + race-sicher.
-- **`cancel_booking(p_booking_id uuid) → void`** — nur eigene Buchung, nur vor Beginn (`min(date) > current_date`, weiterhin tagesbasiert), **nicht** wenn bereits beglichen (Migration `...0004`). Löscht die Buchung; FKs geben Slots frei und löschen die Schuld.
-- **`settle_ledger(p_ledger_id uuid) → void`** — setzt `settled_at`/`settled_by`, nur durch Schuldner **oder** Gläubiger, nur wenn noch offen.
-- **`claim_spot(p_spot_id int) → void`** — neu (Migration `...0006`). Beansprucht einen besitzerlosen aktiven Platz für sich selbst via bedingtem `UPDATE ... WHERE owner_id is null and active`; race-sicher (0 Treffer → Exception „Platz ist schon vergeben oder nicht verfügbar"). Execute nur an `authenticated`.
+„Heute" ist das **lokale** Datum des Containers (`TZ=Europe/Vienna`), nicht mehr UTC.
 
-**Grants**: Execute ist von `public`/`anon` entzogen und explizit an `authenticated` erteilt (Migration `...0003` für `book_spot`/`cancel_booking`/`settle_ledger`, direkt in `...0006` für `claim_spot` — behebt die Postgres-Falle, dass EXECUTE per Default an PUBLIC geht).
+## Mail (`server/mail.js`)
 
-## Migrationen (nur additiv, nie editieren)
+nodemailer, konfiguriert über `SMTP_HOST/PORT/USER/PASS/FROM`. Ohne `SMTP_HOST` antworten
+`/auth/forgot` und `/admin/zahltag` mit 503 und klarer Meldung; alles andere läuft.
 
-| Datei | Inhalt |
-|---|---|
-| `...0001_schema.sql` | Tabellen, Seed (24 spots, settings-Zeile), `handle_new_user`-Trigger |
-| `...0002_rls_rpc.sql` | RLS-Policies, `is_admin()`, die drei RPCs |
-| `...0003_fix_rpc_grants.sql` | Execute-Grants: `public`/`anon` revoke, `authenticated` grant |
-| `...0004_cancel_settled_guard.sql` | `cancel_booking` neu: verbietet Storno beglichener Schulden |
-| `...0005_invites.sql` | `invites`-Tabelle (Registrierungs-Code) + admin-only RLS |
-| `...0006_hourly_spots.sql` | `free_slots`: `half`→`hour` (0–23, Bestandsdaten je Halbtag auf 12 Stunden-Zeilen aufgefächert), neuer PK `(spot_id,date,hour)`; `spots`: `active`-Flag (5/7/9/19 auf inaktiv, `owner_id` genullt), Platz 24 gelöscht, `grid_row`/`grid_col` entfernt; `profiles.seeker` (default false); `settings.day_rate_cents` → 300; `book_spot` neu auf Stunden-Slots + Tagespauschale umgestellt; neuer RPC `claim_spot` |
+## CLI (`server/cli.js`)
 
-Anwenden per Supabase-MCP `apply_migration` (Name = Dateiname ohne `.sql`). DB-Typen nach Schema-Änderungen neu generieren (`generate_typescript_types` → `src/lib/database.types.ts`).
-
-## Edge Functions
-
-Alle drei: CORS auf allen Pfaden, top-level `try/catch`, Deno.
-
-- **`zahltag`** (`verify_jwt: true`) — vom Admin-Button aufgerufen. Prüft Admin (sonst 403) **vor** Service-Role-Arbeit; listet Auth-User, verschickt via **Resend** eine Mail an alle (`bcc`), Antwort `{ sent: number }`. Braucht Secret `RESEND_API_KEY`.
-- **`join`** (`verify_jwt: false`, deployed v3) — öffentliche Selbstregistrierung, aufgerufen von der Join-Seite. Zwei Modi: `{code, list:true}` liefert die IDs der besitzerlosen aktiven Plätze (fürs Platz-Dropdown; `anon` darf sonst nichts lesen). Der Registrierungs-Aufruf validiert Eingaben (E-Mail, Passwort ≥6, Name), prüft den geheimen `invites.code` (Service-Role-Read), deckelt bei `MAX_USERS = 50` (Count auf `profiles`), legt den User mit `email_confirm: true` an (keine Bestätigungs-Mail; Profil kommt per `handle_new_user`-Trigger), setzt optional `profiles.seeker` und ordnet einen gewünschten `spot_id` per bedingtem `UPDATE` zu — race-sicher: 0 Treffer heißt der Platz war inzwischen weg, der Account wird trotzdem angelegt und die Antwort bekommt ein `warning`. Antwort `{ ok, error?, warning?, spots? }` (200 auch bei Logikfehlern, 500 nur bei Exceptions).
-- **`delete-user`** (`verify_jwt: true`) — Admin löscht einen User. Prüft Admin, verhindert Selbstlöschung, löst zuerst `spots.owner_id`, dann `admin.deleteUser`. Schlägt (mit klarer Meldung) fehl, wenn der User Buchungen/Ledger-Historie hat (FK RESTRICT).
+Notfall im Container: `invite`, `set-password <email> <pw>`, `make-admin <email>`, `backup <datei>`
+(`vacuum into`, konsistent im laufenden Betrieb).
 
 ## Frontend
 
-- **`App.tsx`** — Auth-Gate (`getSession` + `onAuthStateChange`), Join-Routing (bei `?join=CODE` und ohne Session → `Join`-Seite), `is_admin`+`name`-Abfrage (Admin-Tab, User-Chip mit Initialen im Header), Tab-Shell (**Kalender** (Startseite/Default-Tab) **/ Garage / Meine Buchungen / Anleitung / Admin**) mit Sticky-Header (Ink-„P"-Logo, Pill-Tabs), Passwort-Dialog als Modal („Passwort ändern"; öffnet automatisch bei Invite-/Recovery-Link via URL-Hash, dann als „Neues Passwort setzen").
-- **`Login.tsx`** — E-Mail + Passwort (`signInWithPassword`), „Passwort vergessen" (`resetPasswordForEmail`).
-- **`pages/Calendar.tsx`** — Startseite. Monatsansicht (Wochenstart Montag); Tage mit fremden freien Plätzen zeigen ein grünes „n frei"-Badge, Tage mit eigener Freigabe zusätzlich ein blaues „meins"-Badge. Tag anklicken öffnet die Liste der an diesem Tag freien Plätze; der eigene Platz erscheint als blaue Info-Zeile („von dir freigegeben", kein Buchen-Formular), fremde Plätze mit Buchen-Formular; pro Platz werden die freien Stunden per `hourSpans`/`fmtSpan` zu Bereichen gemergt angezeigt, `RangeForm` bucht via RPC. Card „Mein Platz": eigene Plätze per `RangeForm` freigeben/zurückziehen (direkt auf `free_slots`); wer noch keinen Platz hat, kann einen besitzerlosen aktiven Platz per `claim_spot`-RPC („Das ist mein Platz") beanspruchen.
-- **`pages/Garage.tsx`** — rein statische Orientierungsseite, keine Aktionen: CSS-Grundriss nach dem echten Plan von Objekt 2 (statische `SPOT_POS`-Konstante, so orientiert dass die Einfahrten unten liegen; Kacheln mit Platznummer + Besitzer-Initialen, „ICH" für den eigenen Platz, 🚲/🚜 für inaktive; Plan in `overflow-x-auto`-Wrapper mit `min-w-96` → auf schmalen Handys horizontal scrollbar) plus Liste „wem gehört welcher Platz". Buchen/Freigeben passiert im Kalender.
-- **`pages/MyBookings.tsx`** (ex `Ledger.tsx`) — zwei Abschnitte: eigene künftige Buchungen (PostgREST-Embed `bookings→free_slots`, Preis via `priceCents`, Storno-Button bis zum Vortag) und offene Ledger-Posten „X schuldet Y n €" mit Beglichen-Button (nur Beteiligte) plus aufklappbarer Beglichen-Historie. Der Admin-Bereich (Tagessatz, Zahltag) ist auf `pages/Admin.tsx` ausgelagert.
-- **`pages/Help.tsx`** — statische Bedienungsanleitung (Tab „Anleitung"): buchen (stundengenau, Tagespauschale)/freigeben/Platz eintragen/stornieren/begleichen, Garagenplan, Passwort. Kein Datenzugriff, keine Props.
-- **`pages/Admin.tsx`** — nur für Admins sichtbar (Tab „Admin"). Vier Sektionen: Plätze zuweisen (`spots.owner_id` via UPDATE, nur aktive Plätze), Einladungs-Link (anzeigen/kopieren/rotieren via `invites`), User verwalten (Admin-Toggle via `profiles`, „sucht Platz"-Badge für `seeker`, Löschen via `delete-user`-Function), Tagessatz & Zahltag.
-- **`pages/Join.tsx`** — Selbstregistrierung: Name/E-Mail/Passwort + Checkbox „Ich habe einen Parkplatz" (Auswahl aus den per `{code, list:true}` geladenen besitzerlosen aktiven Plätzen; die ganze Sektion erscheint nur, wenn diese Liste nicht leer ist; kein `seeker`-Feld mehr im UI) → `join`-Function; zeigt bei `data.warning` einen Alert (Wunsch-Platz war inzwischen weg), danach direkter `signInWithPassword` und Redirect auf `origin` (entfernt `?join`).
-- **`components/RangeForm.tsx`** — Datum+Stunde-von-bis-Formular (volle Stunden, Ende exklusiv), zeigt bei übergebenem `rateCents` den Preis (Tagespauschale) direkt im Submit-Button an. Verwendet von `Calendar.tsx` (Buchen/Freigeben/Zurückziehen).
-- **`lib/slots.ts`** — reine Logik, TDD-getestet: `hourRange`, `priceCents`, `hourSpans`, `fmtSpan`, `fmtEur`, `localDate`, Typ `Slot` (`{date, hour}`). `Slot` ist ein Type-Alias (nicht Interface), damit es an den generierten `Json`-RPC-Parametertyp zuweisbar ist.
+- **`lib/api.ts`** — `fetch`-Wrapper (`api.get/post/put/del`, wirft `ApiError` mit Server-Meldung) und
+  `attempt()` für `[data, error]`-Tupel. Session läuft übers Cookie, kein Token im JS.
+- **`App.tsx`** — Auth-Gate über `GET /auth/me`, Routing: `?reset=TOKEN` → `ResetPassword`,
+  `?join=CODE` ohne Login → `Join`, sonst `Login` bzw. Tab-Shell (**Kalender** / Garage / Meine Buchungen /
+  Anleitung / Admin) mit Sticky-Header und „Passwort ändern"-Modal. Logout setzt den Tab auf Kalender zurück.
+- **`Login.tsx`** — Login, „Passwort vergessen" (`/auth/forgot`).
+- **`pages/ResetPassword.tsx`** — Landeseite des Reset-Links: neues Passwort zweimal, danach eingeloggt.
+- **`pages/Calendar.tsx`** — Startseite. Monatsansicht (Wochenstart Montag); grünes „n frei"-Badge für fremde
+  freie Plätze, blaues „meins"-Badge für eigene Freigaben; Tagesliste mit gemergten Stundenbereichen
+  (`hourSpans`/`fmtSpan`), `RangeForm` bucht; Card „Mein Platz": freigeben/zurückziehen bzw. Platz beanspruchen.
+- **`pages/Garage.tsx`** — statischer CSS-Grundriss (`SPOT_POS`) + Besitzerliste, keine Aktionen.
+- **`pages/MyBookings.tsx`** — künftige eigene Buchungen mit Storno (bis Vortag) + offene Ledger-Posten mit
+  „Schulden beglichen" (nur Beteiligte) + aufklappbare Beglichen-Historie.
+- **`pages/Help.tsx`** — statische Anleitung.
+- **`pages/Admin.tsx`** — Plätze zuweisen, Einladungs-Link, User verwalten, Tagessatz & Zahltag.
+- **`pages/Join.tsx`** — Registrierung über `?join=CODE` mit optionaler Platz-Wahl; Server loggt direkt ein.
+- **`components/RangeForm.tsx`**, **`lib/slots.ts`** — unverändert (Zeitraum-Formular, reine Slot-/Preis-Logik).
+
+## Tests
+
+`npm test` (Vitest): `src/lib/slots.test.ts` (Slot-/Preis-Logik) und `server/api.test.js` — startet den
+echten Server mit In-Memory-SQLite und Fake-Mailer und prüft Registrierung/Admin-Bootstrap, Rechte
+(401/403), Login/Logout, Freigeben/Zurückziehen, Buchen (Tagespauschale, Eigen-/Doppelbuchung, Rollback),
+Storno (Fremd, Same-Day, beglichen), Begleichen, Claim, Admin-Funktionen, User löschen, Passwort-Reset
+(Einmal-Token, Session-Abmeldung), Zahltag und CSRF-Schutz.
 
 ## Deploy
 
-Frontend auf Vercel (Vite, Repo-Root, Env `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`). Details + einmalige Supabase-Setup-Schritte im `README.md`.
+Docker-Image (`Dockerfile`, multi-stage, `node:24-alpine`; bewusst ohne `--platform=$BUILDPLATFORM`, damit der
+lokale Build auch mit älteren Docker-Buildern auf der NAS läuft — ARM baut die Action per QEMU). **GitHub Actions** (`.github/workflows/docker.yml`) testet und baut bei jedem Push
+auf `main` das Image für `linux/amd64` + `linux/arm64` und pusht es nach `ghcr.io/luke-imd/brot-soft:latest`
+(+ Tag mit Commit-SHA). Die NAS hat nur `docker-compose.yml` (zieht dieses Image), `.env` und `data/`; ein
+DSM-Aufgabenplaner-Script macht täglich `docker compose pull && up -d`. Selbst bauen geht weiterhin mit
+`docker-compose.build.yml`. Davor DSM-Reverse-Proxy mit Let's Encrypt. Vollständige Anleitung: `docs/SYNOLOGY.md`.
