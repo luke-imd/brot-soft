@@ -55,7 +55,7 @@ src/
     ├── Garage.tsx           # Garagenplan als CSS-Grundriss (SPOT_POS nach echtem Plan) + Besitzer-Liste, keine Aktionen
     ├── MyBookings.tsx       # (ex Ledger.tsx) Künftige Buchungen mit Storno + offene/beglichene Schulden
     ├── Help.tsx             # Statische Bedienungsanleitung für User (Tab "Anleitung")
-    ├── Admin.tsx            # Admin-Seite: Plätze zuweisen, Einladungs-Link, User verwalten, Tagessatz/Zahltag
+    ├── Admin.tsx            # Admin-Seite: Plätze zuweisen + aktiv/inaktiv, Einladungs-Link, User verwalten, Tagessatz/Zahltag
     ├── Join.tsx             # Selbstregistrierung über ?join=CODE-Link (optionale Platz-Wahl)
     └── ResetPassword.tsx    # Landeseite des Passwort-Reset-Links (?reset=TOKEN)
 

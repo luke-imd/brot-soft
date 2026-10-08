@@ -24,7 +24,7 @@ Text `YYYY-MM-DD`, Zeitstempel als ISO-String, Booleans als 0/1 (API liefert `tr
 | `users` | `id` (uuid), `email` (unique, lowercase), `name`, `password_hash` (scrypt), `is_admin`, `seeker`, `created_at` | Ersetzt `auth.users` + `profiles` |
 | `sessions` | `token_hash` (sha256 des Cookie-Tokens), `user_id` (cascade), `expires_at` | Login-Sessions, 180 Tage |
 | `password_resets` | `token_hash`, `user_id` (cascade), `expires_at` | Einmal-Reset-Tokens, 60 Minuten |
-| `spots` | `id` (1–23), `owner_id` (nullable), `active` | 5/7/9/19 inaktiv, `owner_id` dort dauerhaft null |
+| `spots` | `id` (1–23), `owner_id` (nullable), `active` | Seed: 5/7/9/19 inaktiv; im Admin-Tab umschaltbar, inaktiv ⇒ `owner_id` null |
 | `settings` | `id = 1`, `day_rate_cents` | Single-Row, Tagespauschale |
 | `invites` | `id = 1`, `code` | Single-Row, geheimer `?join=`-Code |
 | `bookings` | `id` (uuid), `spot_id`, `borrower_id`, `created_at` | Eine Buchung |
@@ -69,6 +69,7 @@ kein Recht 403).
 | `POST /api/ledger/:id/settle` | Schuldner/Gläubiger | `settle_ledger` |
 | `POST /api/spots/:id/claim` | eingeloggt | `claim_spot` (besitzerlos + aktiv, erster gewinnt) |
 | `PUT /api/admin/spots/:id` | Admin | Besitzer setzen (nur aktive Plätze) |
+| `PUT /api/admin/spots/:id/active` | Admin | `{active}` — aktivieren; deaktivieren nur ohne künftige Buchungen, entfernt Besitzer + künftige offene Freigaben |
 | `PUT /api/admin/profiles/:id` | Admin | Admin-Recht (nicht für sich selbst) |
 | `DELETE /api/admin/profiles/:id` | Admin | `delete-user`: nur ohne Buchungs-/Ledger-Historie, nie sich selbst, Plätze werden frei |
 | `PUT /api/admin/settings` | Admin | Tagessatz |
@@ -99,11 +100,11 @@ Notfall im Container: `invite`, `set-password <email> <pw>`, `make-admin <email>
 - **`pages/Calendar.tsx`** — Startseite. Monatsansicht (Wochenstart Montag); grünes „n frei"-Badge für fremde
   freie Plätze, blaues „meins"-Badge für eigene Freigaben; Tagesliste mit gemergten Stundenbereichen
   (`hourSpans`/`fmtSpan`), `RangeForm` bucht; Card „Mein Platz": freigeben/zurückziehen bzw. Platz beanspruchen.
-- **`pages/Garage.tsx`** — statischer CSS-Grundriss (`SPOT_POS`) + Besitzerliste, keine Aktionen.
+- **`pages/Garage.tsx`** — statischer CSS-Grundriss (`SPOT_POS`) + Besitzerliste, keine Aktionen. Aktiv/inaktiv kommt aus der DB; `INACTIVE_LABEL`/`INACTIVE_ICON` sind nur Anzeige (Fallback „nicht verfügbar“/✕).
 - **`pages/MyBookings.tsx`** — künftige eigene Buchungen mit Storno (bis Vortag) + offene Ledger-Posten mit
   „Schulden beglichen" (nur Beteiligte) + aufklappbare Beglichen-Historie.
 - **`pages/Help.tsx`** — statische Anleitung.
-- **`pages/Admin.tsx`** — Plätze zuweisen, Einladungs-Link, User verwalten, Tagessatz & Zahltag.
+- **`pages/Admin.tsx`** — Plätze zuweisen + aktivieren/deaktivieren, Einladungs-Link, User verwalten, Tagessatz & Zahltag.
 - **`pages/Join.tsx`** — Registrierung über `?join=CODE` mit optionaler Platz-Wahl; Server loggt direkt ein.
 - **`components/RangeForm.tsx`**, **`lib/slots.ts`** — unverändert (Zeitraum-Formular, reine Slot-/Preis-Logik).
 
@@ -112,7 +113,7 @@ Notfall im Container: `invite`, `set-password <email> <pw>`, `make-admin <email>
 `npm test` (Vitest): `src/lib/slots.test.ts` (Slot-/Preis-Logik) und `server/api.test.js` — startet den
 echten Server mit In-Memory-SQLite und Fake-Mailer und prüft Registrierung/Admin-Bootstrap, Rechte
 (401/403), Login/Logout, Freigeben/Zurückziehen, Buchen (Tagespauschale, Eigen-/Doppelbuchung, Rollback),
-Storno (Fremd, Same-Day, beglichen), Begleichen, Claim, Admin-Funktionen, User löschen, Passwort-Reset
+Storno (Fremd, Same-Day, beglichen), Begleichen, Claim, Admin-Funktionen (inkl. Platz aktiv/inaktiv), User löschen, Passwort-Reset
 (Einmal-Token, Session-Abmeldung), Zahltag und CSRF-Schutz.
 
 ## Deploy

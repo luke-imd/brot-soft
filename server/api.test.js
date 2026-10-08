@@ -158,6 +158,21 @@ describe('Garagen-API', () => {
     expect((await owner.get('/auth/me')).body.is_admin).toBe(true)
   })
 
+  it('Admin: Platz aktivieren/deaktivieren', async () => {
+    expect((await borrower.put('/admin/spots/5/active', { active: true })).status).toBe(403)
+    expect((await admin.put('/admin/spots/5/active', { active: true })).status).toBe(200)
+    expect((await borrower.get('/spots')).body.find((s) => s.id === 5).active).toBe(true)
+    expect((await borrower.post('/spots/5/claim')).status).toBe(200)
+    // offene Freigabe wird beim Deaktivieren entfernt, Besitzer auch
+    await borrower.post('/free-slots', { spot_id: 5, slots: [{ date: plus(4), hour: 9 }] })
+    expect((await admin.put('/admin/spots/5/active', { active: false })).status).toBe(200)
+    expect(db.prepare('select owner_id, active from spots where id = 5').get()).toEqual({ owner_id: null, active: 0 })
+    expect(db.prepare('select count(*) n from free_slots where spot_id = 5').get().n).toBe(0)
+    // mit künftiger Buchung nicht deaktivierbar
+    expect((await admin.put('/admin/spots/1/active', { active: false })).body.error).toMatch(/künftige Buchungen/)
+    expect((await admin.put('/admin/spots/99/active', { active: true })).body.error).toMatch(/nicht gefunden/)
+  })
+
   it('Admin: User löschen nur ohne Historie, sich selbst nie', async () => {
     const me = (await admin.get('/auth/me')).body.id
     expect((await admin.del(`/admin/profiles/${me}`)).body.error).toMatch(/selbst/)

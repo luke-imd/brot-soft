@@ -310,6 +310,26 @@ export function createApp({ db, mailer, appUrl, staticDir, maxAttempts = 30 }) {
     res.json({ ok: true })
   })
 
+  // Platz aktiv/inaktiv schalten (z. B. Fahrrad-/Traktor-Abstellplatz wird wieder Autoplatz).
+  // Deaktivieren nur ohne künftige Buchungen; offene Freigaben und der Besitzer werden dabei entfernt.
+  app.put('/api/admin/spots/:id/active', admin, (req, res) => {
+    const id = Number(req.params.id)
+    const active = !!req.body.active
+    tx(db, () => {
+      if (!db.prepare('select 1 from spots where id = ?').get(id)) fail('Platz nicht gefunden')
+      if (!active) {
+        const booked = db.prepare('select 1 from free_slots where spot_id = ? and date >= ? and booking_id is not null')
+          .get(id, today())
+        if (booked) fail('Platz hat noch künftige Buchungen — erst stornieren lassen.')
+        db.prepare('delete from free_slots where spot_id = ? and date >= ? and booking_id is null').run(id, today())
+        db.prepare('update spots set active = 0, owner_id = null where id = ?').run(id)
+      } else {
+        db.prepare('update spots set active = 1 where id = ?').run(id)
+      }
+    })
+    res.json({ ok: true })
+  })
+
   app.put('/api/admin/profiles/:id', admin, (req, res) => {
     if (req.params.id === req.user.id) fail('Eigene Admin-Rechte kann man nicht ändern.')
     db.prepare('update users set is_admin = ? where id = ?').run(req.body.is_admin ? 1 : 0, req.params.id)
