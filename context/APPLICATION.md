@@ -5,7 +5,7 @@ Fachliche Regeln der Garagen-Verwaltung. Referenz-Design: `docs/superpowers/spec
 ## Rollen
 
 - **User**: hat einen Account (`users`), ggf. Besitzer eines Parkplatzes. Sieht alles, bucht fremde Plätze, gibt eigene frei, begleicht Schulden.
-- **Admin** (`users.is_admin = 1`): sieht zusätzlich den Tab **Admin** — Plätze zuweisen, Einladungs-Link verwalten, User verwalten (Admin-Rechte vergeben, löschen), Tagessatz ändern, Zahltag-Mail auslösen.
+- **Admin** (`users.is_admin = 1`): sieht zusätzlich den Tab **Admin** — Plätze zuweisen und aktiv/inaktiv schalten, Einladungs-Link verwalten, User verwalten (Admin-Rechte vergeben, löschen), Tagessatz ändern, Zahltag-Mail auslösen.
 
 Geschlossene Community: kein offener Self-Signup. Registrierung nur über den geheimen Einladungs-Link (`?join=CODE`), den der Admin auf der Admin-Seite erzeugt und teilt. Wer den Link hat, legt selbst Name/E-Mail/Passwort an und ist **sofort drin** (kein Bestätigungs-Mail). Login danach mit E-Mail + Passwort. **Der allererste registrierte User wird automatisch Admin** (Bootstrap; der Einladungs-Link steht beim ersten Start im Container-Log).
 
@@ -18,8 +18,8 @@ Geschlossene Community: kein offener Self-Signup. Registrierung nur über den ge
 5. **Begleichen** — Im Tab **Meine Buchungen**, neben jedem offenen Ledger-Posten ein „Schulden beglichen"-Button. Einseitig: Schuldner **oder** Gläubiger darf klicken, wir glauben ohne Gegenbestätigung. Geloggt via `settled_at` + `settled_by`.
 6. **Zahltag** (Admin, ~1×/Jahr) — Button verschickt eine „Heute ist Zahltag"-Mail an alle User (per SMTP, `POST /api/admin/zahltag`).
 7. **Registrieren** — Neuer Mitbewohner öffnet den Einladungs-Link, gibt Name/E-Mail/Passwort ein und kreuzt — nur solange es besitzerlose aktive Plätze gibt — optional „Ich habe einen Parkplatz" an (dann Auswahl aus diesen Plätzen; sind alle vergeben, erscheint die Option gar nicht). Der Server (`POST /api/join`) legt den User an (gated durch den geheimen Code + 50-User-Deckel) und ordnet den gewünschten Platz bedingt zu — ist er inzwischen weg, wird der Account trotzdem angelegt und eine `warning` zurückgegeben. Der Server loggt direkt ein, die App kann sofort genutzt werden.
+8. **Verwalten** (Admin) — Plätze Besitzern zuordnen, Plätze aktivieren/deaktivieren, Einladungs-Link rotieren, User zum Admin machen oder löschen.
 9. **Passwort vergessen** — Auf der Login-Seite E-Mail eingeben → Mail mit Link `?reset=TOKEN` (60 min gültig, einmalig). Dort neues Passwort setzen, danach eingeloggt; alle anderen Sessions werden abgemeldet. Braucht SMTP; Notfall ohne Mail: `node server/cli.js set-password`.
-8. **Verwalten** (Admin) — Plätze Besitzern zuordnen, Einladungs-Link rotieren, User zum Admin machen oder löschen.
 
 ## Business Rules (verbindlich)
 
@@ -28,7 +28,7 @@ Geschlossene Community: kein offener Self-Signup. Registrierung nur über den ge
 - **Buchbar** ist nur, was der Besitzer freigegeben hat und was noch nicht gebucht ist und in der Zukunft liegt (`free_slots.date >= heute`, lokales Datum Europe/Vienna).
 - **Eigenen Platz buchen** ist verboten (Server antwortet „Eigenen Platz kann man nicht buchen").
 - **Platz ohne Besitzer** ist nicht buchbar (Server antwortet „Platz hat keinen Besitzer"). Neu angelegte Plätze haben `owner_id = null`, bis der Admin sie zuordnet oder ein User sie selbst beansprucht.
-- **Inaktive Plätze** (5, 7, 9, 19 — Fahrrad-/Traktor-Abstellplätze, `spots.active = false`) sind nie buchbar und können auch nicht beansprucht werden; `owner_id` bleibt bei ihnen dauerhaft `null`.
+- **Inaktive Plätze** (`spots.active = false`; beim ersten Start 5, 7, 9, 19 — Fahrrad-/Traktor-Abstellplätze) sind nie buchbar und können auch nicht beansprucht werden; `owner_id` ist bei ihnen `null`. Der Admin schaltet Plätze im Admin-Tab um: **Aktivieren** macht den Platz normal zuweisbar/beanspruchbar; **Deaktivieren** geht nur ohne künftige Buchungen und entfernt Besitzer + künftige offene Freigaben (vergangene Buchungen/Ledger bleiben).
 - **`users.seeker`** ist rein informativ (Admin-Badge „sucht Platz") und wird von der Join-Seite nicht gesetzt; `POST /api/join` akzeptiert das Feld weiterhin.
 - **Platz beanspruchen** ist race-sicher: das bedingte `UPDATE ... WHERE owner_id is null and active` trifft bei gleichzeitigen Versuchen nur einmal — die zweite Anfrage bekommt 0 Treffer und eine Exception.
 - **Ledger entsteht bei Buchung, automatisch** — nicht am Ende des Zeitraums.

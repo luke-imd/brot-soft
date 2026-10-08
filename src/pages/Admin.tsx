@@ -38,6 +38,13 @@ export default function Admin({ userId }: { userId: string }) {
     await load()
   }
 
+  async function setActive(spot: Spot, active: boolean) {
+    if (!active && !confirm(`Platz ${spot.id} deaktivieren? Besitzer und offene Freigaben werden entfernt.`)) return
+    const [, error] = await attempt(api.put(`/admin/spots/${spot.id}/active`, { active }))
+    setMsg(error ?? `Platz ${spot.id} ist jetzt ${active ? 'aktiv (buchbar)' : 'deaktiviert'}.`)
+    await load()
+  }
+
   async function toggleAdmin(p: Profile) {
     const [, error] = await attempt(api.put(`/admin/profiles/${p.id}`, { is_admin: !p.is_admin }))
     setMsg(error ?? `${p.name}: Admin = ${!p.is_admin ? 'ja' : 'nein'}`)
@@ -77,19 +84,30 @@ export default function Admin({ userId }: { userId: string }) {
       {msg && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{msg}</p>}
 
       <section className="card">
-        <h2 className="mb-3 text-lg font-bold tracking-tight">Plätze zuweisen</h2>
+        <h2 className="mb-1 text-lg font-bold tracking-tight">Plätze zuweisen</h2>
+        <p className="mb-3 text-sm text-zinc-500">
+          Inaktive Plätze (z. B. Fahrrad-/Traktor-Abstellplätze) sind nicht buchbar und haben keinen Besitzer.
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
-          {spots.filter(s => s.active).map(spot => (
-            <div key={spot.id} className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-sm font-medium">Platz {spot.id}</span>
-              <select
-                value={spot.owner_id ?? ''}
-                onChange={e => assignSpot(spot.id, e.target.value || null)}
-                className="input flex-1"
-              >
-                <option value="">— kein Besitzer —</option>
-                {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+          {spots.map(spot => (
+            <div key={spot.id} className="flex min-w-0 items-center gap-2">
+              <span className="w-16 shrink-0 whitespace-nowrap text-sm font-medium">Platz {spot.id}</span>
+              {spot.active ? (
+                <select
+                  value={spot.owner_id ?? ''}
+                  onChange={e => assignSpot(spot.id, e.target.value || null)}
+                  className="input min-w-0 flex-1"
+                >
+                  <option value="">— kein Besitzer —</option>
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              ) : (
+                <span className="flex-1 text-sm text-zinc-400">inaktiv, nicht buchbar</span>
+              )}
+              <button onClick={() => setActive(spot, !spot.active)}
+                className="btn btn-outline shrink-0 px-2.5 py-1 text-xs">
+                {spot.active ? 'Deaktivieren' : 'Aktivieren'}
+              </button>
             </div>
           ))}
         </div>

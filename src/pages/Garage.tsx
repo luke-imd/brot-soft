@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 
 type SpotRow = { id: number; owner_id: string | null; active: boolean }
 
+// Ob ein Platz aktiv ist, kommt aus der DB (Admin-Schalter); Label/Icon hier sind nur die Anzeige.
 // ponytail: reine Orientierungs-Seite — CSS-Plan nach dem echten Grundriss + Besitzer-Liste,
 // keine Aktionen. Gebucht/gebucht-werden passiert im Kalender.
 const INACTIVE_LABEL: Record<number, string> = { 5: 'Fahrrad', 7: 'Fahrrad', 9: 'Traktor', 19: 'Fahrrad' }
@@ -85,7 +86,7 @@ export default function Garage({ userId }: { userId: string }) {
                         : 'border border-dashed border-white/25 bg-white/5 text-zinc-400'}`}>
                 <span className="font-extrabold leading-none">{spot.id}</span>
                 <span className="text-[8px] font-bold tracking-wide opacity-75">
-                  {!spot.active ? INACTIVE_ICON[spot.id] : initials(spot.owner_id)}
+                  {!spot.active ? (INACTIVE_ICON[spot.id] ?? '✕') : initials(spot.owner_id)}
                 </span>
               </div>
             )
