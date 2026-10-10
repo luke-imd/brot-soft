@@ -93,6 +93,13 @@ export default function Join({ code }: { code: string }) {
           {busy ? 'Moment…' : 'Account anlegen'}
         </button>
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {/* Link auf "/" entfernt ?join, App zeigt dann die Login-Seite */}
+        <p className="border-t border-zinc-200 pt-4 text-center text-sm text-zinc-500">
+          Bereits einen Account?{' '}
+          <a href="/" className="font-semibold text-zinc-900 underline-offset-4 hover:underline">
+            Anmelden →
+          </a>
+        </p>
       </form>
     </div>
   )

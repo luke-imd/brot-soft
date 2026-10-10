@@ -105,7 +105,7 @@ Notfall im Container: `invite`, `set-password <email> <pw>`, `make-admin <email>
   „Schulden beglichen" (nur Beteiligte) + aufklappbare Beglichen-Historie.
 - **`pages/Help.tsx`** — statische Anleitung.
 - **`pages/Admin.tsx`** — Plätze zuweisen + aktivieren/deaktivieren, Einladungs-Link, User verwalten, Tagessatz & Zahltag.
-- **`pages/Join.tsx`** — Registrierung über `?join=CODE` mit optionaler Platz-Wahl; Server loggt direkt ein.
+- **`pages/Join.tsx`** — Registrierung über `?join=CODE` mit optionaler Platz-Wahl; Server loggt direkt ein. Unten Link „Bereits einen Account? Anmelden →“ auf `/` (ohne `?join` → Login-Seite).
 - **`components/RangeForm.tsx`**, **`lib/slots.ts`** — unverändert (Zeitraum-Formular, reine Slot-/Preis-Logik).
 
 ## Tests
